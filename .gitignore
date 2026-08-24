@@ -1,0 +1,14 @@
+# Eclipse workspace state
+.metadata/
+
+# Compiled Java output
+**/bin/
+*.class
+
+# Generated SimpleDB databases
+**/studentdb/
+*.tbl
+*.log
+
+# macOS
+.DS_Store
