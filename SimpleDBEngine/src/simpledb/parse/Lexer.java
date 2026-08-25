@@ -37,6 +37,17 @@ public class Lexer {
    }
    
    /**
+    * Returns true if the current token can begin a comparison operator.
+    *
+    * @return true if the current token is =, <, >, or !
+    */
+   public boolean matchOpr() {
+      return matchDelim('=')
+            || matchDelim('<')
+            || matchDelim('>')
+            || matchDelim('!');
+   }
+   /**
     * Returns true if the current token is an integer.
     * @return true if the current token is an integer
     */
@@ -81,6 +92,61 @@ public class Lexer {
       if (!matchDelim(d))
          throw new BadSyntaxException();
       nextToken();
+   }
+   
+   /**
+    * Reads and returns a comparison operator.
+    *
+    * Supported operators are:
+    * =, <, <=, >, >=, !=, and <>
+    *
+    * @return the comparison operator
+    */
+   public String eatOpr() {
+      if (!matchOpr())
+         throw new BadSyntaxException();
+
+      if (matchDelim('=')) {
+         eatDelim('=');
+         return "=";
+      }
+
+      if (matchDelim('<')) {
+         eatDelim('<');
+
+         if (matchDelim('=')) {
+            eatDelim('=');
+            return "<=";
+         }
+
+         if (matchDelim('>')) {
+            eatDelim('>');
+            return "<>";
+         }
+
+         return "<";
+      }
+
+      if (matchDelim('>')) {
+         eatDelim('>');
+
+         if (matchDelim('=')) {
+            eatDelim('=');
+            return ">=";
+         }
+
+         return ">";
+      }
+
+      // Since the previous cases handled =, <, and >,
+      // the remaining possible starting character is !.
+      eatDelim('!');
+
+      if (!matchDelim('='))
+         throw new BadSyntaxException();
+
+      eatDelim('=');
+      return "!=";
    }
    
    /**

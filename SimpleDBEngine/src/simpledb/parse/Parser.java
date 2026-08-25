@@ -37,11 +37,11 @@ public class Parser {
    }
    
    public Term term() {
-      Expression lhs = expression();
-      lex.eatDelim('=');
-      Expression rhs = expression();
-      return new Term(lhs, rhs);
-   }
+	   Expression lhs = expression();
+	   String operator = lex.eatOpr();
+	   Expression rhs = expression();
+	   return new Term(lhs, operator, rhs);
+	}
    
    public Predicate predicate() {
       Predicate pred = new Predicate(term());
