@@ -46,8 +46,8 @@ public class IndexInfo {
     * @return the Index object associated with this information
     */
    public Index open() {
-      return new HashIndex(tx, idxname, idxLayout);
-//    return new BTreeIndex(tx, idxname, idxLayout);
+      //return new HashIndex(tx, idxname, idxLayout);
+      return new BTreeIndex(tx, idxname, idxLayout);
    }
    
    /**
@@ -64,8 +64,8 @@ public class IndexInfo {
    public int blocksAccessed() {
       int rpb = tx.blockSize() / idxLayout.slotSize();
       int numblocks = si.recordsOutput() / rpb;
-      return HashIndex.searchCost(numblocks, rpb);
-//    return BTreeIndex.searchCost(numblocks, rpb);
+      //return HashIndex.searchCost(numblocks, rpb);
+      return BTreeIndex.searchCost(numblocks, rpb);
    }
    
    /**
