@@ -13,6 +13,12 @@ public class CreateStudentDB {
          String s = "create table STUDENT(SId int, SName varchar(10), MajorId int, GradYear int)";
          stmt.executeUpdate(s);
          System.out.println("Table STUDENT created.");
+         
+         // create index on student(MajorId)
+         System.out.println("Creating Index MajorIdIndex on STUDENT ...");
+         s = "create index MajorIdIndex on STUDENT(MajorId)";
+         stmt.executeUpdate(s);
+         System.out.println("Index MajorIdIndex on STUDENT created.");
 
          s = "insert into STUDENT(SId, SName, MajorId, GradYear) values ";
          String[] studvals = {"(1, 'joe', 10, 2021)",
@@ -72,6 +78,12 @@ public class CreateStudentDB {
          s = "create table ENROLL(EId int, StudentId int, SectionId int, Grade varchar(2))";
          stmt.executeUpdate(s);
          System.out.println("Table ENROLL created.");
+         
+         System.out.println("Creating Index StudentIdIndex on ENROLL ...");
+         s = "create index StudentIdIndex on ENROLL(StudentId)";
+         stmt.executeUpdate(s);
+         System.out.println("Index StudentIdIndex on ENROLL created.");
+        		 
 
          s = "insert into ENROLL(EId, StudentId, SectionId, Grade) values ";
          String[] enrollvals = {"(14, 1, 13, 'A')",
