@@ -79,6 +79,18 @@ public class Term {
    }
 
    /**
+    * Determines whether this term uses the equality operator.
+    * The index structures supported by this engine only support
+    * equality lookups, so callers use this to decide whether a
+    * term is even eligible for index-based access.
+    *
+    * @return true if the comparison operator is "="
+    */
+   public boolean isEquality() {
+      return operator.equals("=");
+   }
+
+   /**
     * Calculates the extent to which selecting on the term reduces
     * the number of records output by a query.
     *
@@ -91,7 +103,7 @@ public class Term {
        * For non-equality comparisons, estimate that approximately half
        * of the records satisfy the predicate.
        */
-      if (!operator.equals("="))
+      if (!isEquality())
          return 2;
 
       String lhsName;
@@ -136,7 +148,7 @@ public class Term {
        * A non-equality predicate such as F>10 does not establish
        * that F is equal to 10.
        */
-      if (!operator.equals("="))
+      if (!isEquality())
          return null;
 
       if (lhs.isFieldName()
@@ -166,7 +178,7 @@ public class Term {
        * A comparison such as F1<F2 does not establish that the two
        * fields are equal.
        */
-      if (!operator.equals("="))
+      if (!isEquality())
          return null;
 
       if (lhs.isFieldName()
