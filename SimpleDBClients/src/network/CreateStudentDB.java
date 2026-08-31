@@ -80,7 +80,7 @@ public class CreateStudentDB {
          System.out.println("Table ENROLL created.");
          
          System.out.println("Creating Index StudentIdIndex on ENROLL ...");
-         s = "create index StudentIdIndex on ENROLL(StudentId)";
+         s = "create index StudentIdIndex on ENROLL(StudentId) using btree";
          stmt.executeUpdate(s);
          System.out.println("Index StudentIdIndex on ENROLL created.");
         		 

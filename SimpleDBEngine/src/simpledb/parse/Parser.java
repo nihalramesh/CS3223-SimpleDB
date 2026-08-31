@@ -240,7 +240,18 @@ public class Parser {
       lex.eatDelim('(');
       String fldname = field();
       lex.eatDelim(')');
-      return new CreateIndexData(idxname, tblname, fldname);
+      // create index name on table(field) [using hash|b-tree], defaulting to hash when omitted.
+      String idxtype = "hash";
+      if (lex.matchKeyword("using")) {
+         lex.eatKeyword("using");
+         if (lex.matchKeyword("hash"))
+            lex.eatKeyword("hash");
+         else {
+            lex.eatKeyword("btree");
+            idxtype = "btree";
+         }
+      }
+      return new CreateIndexData(idxname, tblname, fldname, idxtype);
    }
 }
 
