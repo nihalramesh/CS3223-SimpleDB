@@ -29,11 +29,11 @@ public class MergeJoinPlan implements Plan {
    public MergeJoinPlan(Transaction tx, Plan p1, Plan p2, String fldname1, String fldname2) {
       this.fldname1 = fldname1;
       List<String> sortlist1 = Arrays.asList(fldname1);
-      this.p1 = new SortPlan(tx, p1, sortlist1);
+      this.p1 = new SortPlan(tx, p1, sortlist1, Collections.nCopies(sortlist1.size(), true));
       
       this.fldname2 = fldname2;
       List<String> sortlist2 = Arrays.asList(fldname2);
-      this.p2 = new SortPlan(tx, p2, sortlist2);
+      this.p2 = new SortPlan(tx, p2, sortlist2, Collections.nCopies(sortlist2.size(), true));
       
       sch.addAll(p1.schema());
       sch.addAll(p2.schema());

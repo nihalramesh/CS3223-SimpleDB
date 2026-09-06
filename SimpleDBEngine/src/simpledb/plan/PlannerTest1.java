@@ -21,7 +21,7 @@ public class PlannerTest1 {
          planner.executeUpdate(cmd, tx);
       }
 
-      String qry = "select B from T1 where A=10";
+      String qry = "select B from T1 order by A desc";
       Plan p = planner.createQueryPlan(qry, tx);
       Scan s = p.open();
       while (s.next())

@@ -12,14 +12,19 @@ public class QueryData {
    private List<String> fields;
    private Collection<String> tables;
    private Predicate pred;
+   private List<String> sortFields;
+   private List<Boolean> sortDirections; // true = asc, false = desc
    
    /**
     * Saves the field and table list and predicate.
     */
-   public QueryData(List<String> fields, Collection<String> tables, Predicate pred) {
+   public QueryData(List<String> fields, Collection<String> tables, Predicate pred,
+		   List<String> sortFields, List<Boolean> sortDirections) {
       this.fields = fields;
       this.tables = tables;
       this.pred = pred;
+      this.sortFields = sortFields;
+      this.sortDirections = sortDirections;
    }
    
    /**
@@ -46,6 +51,18 @@ public class QueryData {
    public Predicate pred() {
       return pred;
    }
+   
+   public boolean hasOrderBy() {
+	   return sortFields.size() > 0;
+	}
+
+	public List<String> sortFields() {
+	   return sortFields;
+	}
+
+	public List<Boolean> sortDirections() {
+	   return sortDirections;
+	}
    
    public String toString() {
       String result = "select ";
