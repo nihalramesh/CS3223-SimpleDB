@@ -28,7 +28,7 @@ public class GroupByPlan implements Plan {
     * @param tx the calling transaction
     */
    public GroupByPlan(Transaction tx, Plan p, List<String> groupfields, List<AggregationFn> aggfns) {
-      this.p = new SortPlan(tx, p, groupfields);
+      this.p = new SortPlan(tx, p, groupfields, Collections.nCopies(groupfields.size(), true));
       this.groupfields = groupfields;
       this.aggfns = aggfns;
       for (String fldname : groupfields)
