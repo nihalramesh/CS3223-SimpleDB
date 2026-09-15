@@ -41,13 +41,11 @@ public class RecordComparator implements Comparator<Scan> {
 		    Constant val2 = s2.getVal(fldname);
 		    int result = val1.compareTo(val2);
 
-		    if (!directions.get(i)) {
+		    if (!directions.get(i))
 		    	result = -result;
 
-		       	if (result != 0) {
-		       	    return result;
-		       	}
-		    }
+		    if (result != 0)
+		    	return result;
     	}
     	return 0;
     }
