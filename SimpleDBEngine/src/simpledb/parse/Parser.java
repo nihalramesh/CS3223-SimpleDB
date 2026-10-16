@@ -2,6 +2,7 @@ package simpledb.parse;
 
 import java.util.*;
 
+import simpledb.materialize.*;
 import simpledb.query.*;
 import simpledb.record.*;
 
@@ -56,7 +57,9 @@ public class Parser {
    
    public QueryData query() {
       lex.eatKeyword("select");
-      List<String> fields = selectList();
+      List<String> fields = new ArrayList<>();
+      List<AggregationFn> aggregates = new ArrayList<>();
+      selectList(fields, aggregates);
       lex.eatKeyword("from");
       Collection<String> tables = tableList();
       Predicate pred = new Predicate();
@@ -64,25 +67,94 @@ public class Parser {
          lex.eatKeyword("where");
          pred = predicate();
       }
+      List<String> groupFields = new ArrayList<>();
+      if (lex.matchKeyword("group")) {
+         lex.eatKeyword("group");
+         lex.eatKeyword("by");
+         groupFields = fieldList();
+      }
       List<String> sortFields = new ArrayList<>();
       List<Boolean> sortDirections = new ArrayList<>();
 
       if (lex.matchKeyword("order")) {
          lex.eatKeyword("order");
          lex.eatKeyword("by");
-         orderList(sortFields, sortDirections);
+         orderList(sortFields, sortDirections, aggregates);
       }
-      return new QueryData(fields, tables, pred, sortFields, sortDirections);
+      checkGrouping(fields, groupFields, aggregates, sortFields);
+      return new QueryData(fields, tables, pred, groupFields, aggregates,
+                           sortFields, sortDirections);
    }
    
-   private List<String> selectList() {
-      List<String> L = new ArrayList<String>();
-      L.add(field());
+   private void selectList(List<String> fields, List<AggregationFn> aggregates) {
+      fields.add(selectItem(aggregates));
       if (lex.matchDelim(',')) {
          lex.eatDelim(',');
-         L.addAll(selectList());
+         selectList(fields, aggregates);
       }
-      return L;
+   }
+   
+   /**
+    * Parses either a field name or an aggregate such as
+    * count(sid), returning the name of the output field.
+    * A new aggregate is added to the list of aggregates.
+    */
+   private String selectItem(List<AggregationFn> aggregates) {
+      AggregationFn fn = aggregate();
+      if (fn == null)
+         return field();
+      for (AggregationFn existing : aggregates)
+         if (existing.fieldName().equals(fn.fieldName()))
+            return fn.fieldName();
+      aggregates.add(fn);
+      return fn.fieldName();
+   }
+   
+   private AggregationFn aggregate() {
+      String fnname;
+      if (lex.matchKeyword("sum"))
+         fnname = "sum";
+      else if (lex.matchKeyword("count"))
+         fnname = "count";
+      else if (lex.matchKeyword("avg"))
+         fnname = "avg";
+      else if (lex.matchKeyword("min"))
+         fnname = "min";
+      else if (lex.matchKeyword("max"))
+         fnname = "max";
+      else
+         return null;
+      lex.eatKeyword(fnname);
+      lex.eatDelim('(');
+      String fldname = field();
+      lex.eatDelim(')');
+      switch (fnname) {
+         case "sum":   return new SumFn(fldname);
+         case "count": return new CountFn(fldname);
+         case "avg":   return new AvgFn(fldname);
+         case "min":   return new MinFn(fldname);
+         default:      return new MaxFn(fldname);
+      }
+   }
+   
+   /**
+    * In a query with grouping or aggregation, every
+    * non-aggregate field in the select and order by
+    * clauses must be a group by field.
+    */
+   private void checkGrouping(List<String> fields, List<String> groupFields,
+         List<AggregationFn> aggregates, List<String> sortFields) {
+      if (groupFields.isEmpty() && aggregates.isEmpty())
+         return;
+      List<String> outputs = new ArrayList<>(groupFields);
+      for (AggregationFn fn : aggregates)
+         outputs.add(fn.fieldName());
+      List<String> used = new ArrayList<>(fields);
+      used.addAll(sortFields);
+      for (String fldname : used)
+         if (!outputs.contains(fldname))
+            throw new BadSyntaxException(
+                  "field " + fldname + " must appear in the group by clause or be aggregated");
    }
    
    private Collection<String> tableList() {
@@ -95,26 +167,27 @@ public class Parser {
       return L;
    }
    
-   private void orderList(List<String> sortFields, List<Boolean> sortDirections) {
-	   sortFields.add(field());
+   private void orderList(List<String> sortFields, List<Boolean> sortDirections,
+         List<AggregationFn> aggregates) {
+      sortFields.add(selectItem(aggregates));
 
-	   boolean asc = true;
+      boolean asc = true;
 
-	   if (lex.matchKeyword("asc")) {
-	      lex.eatKeyword("asc");
-	   }
-	   else if (lex.matchKeyword("desc")) {
-	      lex.eatKeyword("desc");
-	      asc = false;
-	   }
+      if (lex.matchKeyword("asc")) {
+         lex.eatKeyword("asc");
+      }
+      else if (lex.matchKeyword("desc")) {
+         lex.eatKeyword("desc");
+         asc = false;
+      }
 
-	   sortDirections.add(asc);
+      sortDirections.add(asc);
 
-	   if (lex.matchDelim(',')) {
-	      lex.eatDelim(',');
-	      orderList(sortFields, sortDirections);
-	   }
-	}
+      if (lex.matchDelim(',')) {
+         lex.eatDelim(',');
+         orderList(sortFields, sortDirections, aggregates);
+      }
+   }
    
 // Methods for parsing the various update commands
    

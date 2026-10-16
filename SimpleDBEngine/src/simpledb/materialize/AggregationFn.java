@@ -1,6 +1,7 @@
 package simpledb.materialize;
 
 import simpledb.query.*;
+import simpledb.record.Schema;
 
 /**
  * The interface implemented by aggregation functions.
@@ -34,4 +35,16 @@ public interface AggregationFn {
     * @return the computed aggregation value
     */
    Constant value();
+   
+   /**
+    * Add the new aggregation field to the specified output schema.
+    * By default the field is an integer field; functions whose
+    * result has the type of the aggregated field (min, max)
+    * override this.
+    * @param sch the output schema
+    * @param source the schema of the records being aggregated
+    */
+   default void addField(Schema sch, Schema source) {
+      sch.addIntField(fieldName());
+   }
 }

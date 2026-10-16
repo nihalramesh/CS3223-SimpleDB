@@ -28,13 +28,21 @@ public class GroupByPlan implements Plan {
     * @param tx the calling transaction
     */
    public GroupByPlan(Transaction tx, Plan p, List<String> groupfields, List<AggregationFn> aggfns) {
-      this.p = new SortPlan(tx, p, groupfields, Collections.nCopies(groupfields.size(), true));
+      // With no group fields every record is in the same group,
+      // so there is nothing to sort.
+      if (groupfields.isEmpty())
+         this.p = p;
+      else
+         this.p = new SortPlan(tx, p, groupfields, Collections.nCopies(groupfields.size(), true));
       this.groupfields = groupfields;
       this.aggfns = aggfns;
-      for (String fldname : groupfields)
+      for (String fldname : groupfields) {
+         if (!p.schema().hasField(fldname))
+            throw new RuntimeException("field " + fldname + " not found.");
          sch.add(fldname, p.schema());
+      }
       for (AggregationFn fn : aggfns)
-         sch.addIntField(fn.fieldName());
+         fn.addField(sch, p.schema());
    }
    
    /**

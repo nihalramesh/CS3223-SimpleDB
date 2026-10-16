@@ -44,12 +44,16 @@ public class BasicQueryPlanner implements QueryPlanner {
       //Step 3: Add a selection plan for the predicate
       p = new SelectPlan(p, data.pred());
       
-      //Step 4: Sort 
+      //Step 4: Group and aggregate
+      if (data.hasGroupBy())
+         p = new GroupByPlan(tx, p, data.groupFields(), data.aggregates());
+      
+      //Step 5: Sort 
       if (data.hasOrderBy()) {
     	  p = new SortPlan(tx, p, data.sortFields(), data.sortDirections());
       }
       
-      //Step 5: Project on the field names
+      //Step 6: Project on the field names
       p = new ProjectPlan(p, data.fields());
         
       return p;
