@@ -17,6 +17,7 @@ public class QueryData {
    private List<AggregationFn> aggregates;
    private List<String> sortFields;
    private List<Boolean> sortDirections; // true = asc, false = desc
+   private boolean distinct;
 
    /**
     * Saves the field and table list, predicate,
@@ -26,7 +27,7 @@ public class QueryData {
     */
    public QueryData(List<String> fields, Collection<String> tables, Predicate pred,
          List<String> groupFields, List<AggregationFn> aggregates,
-         List<String> sortFields, List<Boolean> sortDirections) {
+         List<String> sortFields, List<Boolean> sortDirections, boolean distinct) {
       this.fields = fields;
       this.tables = tables;
       this.pred = pred;
@@ -34,6 +35,7 @@ public class QueryData {
       this.aggregates = aggregates;
       this.sortFields = sortFields;
       this.sortDirections = sortDirections;
+      this.distinct = distinct;
    }
 
    /**
@@ -93,8 +95,12 @@ public class QueryData {
       return sortDirections;
    }
 
+   public boolean isDistinct() {
+      return distinct;
+   }
+
    public String toString() {
-      String result = "select ";
+      String result = "select " + (distinct ? "distinct " : "");
       for (String fldname : fields)
          result += sqlName(fldname) + ", ";
       result = result.substring(0, result.length()-2); //remove final comma
