@@ -28,6 +28,13 @@ public class Planner {
       verifyQuery(data);
       return qplanner.createPlan(data, tx);
    }
+
+   /**
+    * Creates and formats a query plan without opening or executing it.
+    */
+   public String explainQueryPlan(String qry, Transaction tx) {
+      return PlanPrinter.format(createQueryPlan(qry, tx));
+   }
    
    /**
     * Executes an SQL insert, delete, modify, or

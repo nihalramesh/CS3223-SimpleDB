@@ -55,6 +55,10 @@ public class BasicQueryPlanner implements QueryPlanner {
       
       //Step 6: Project on the field names
       p = new ProjectPlan(p, data.fields());
+
+      //Step 7: Remove duplicate projected rows
+      if (data.isDistinct())
+         p = new DistinctPlan(p);
         
       return p;
    }

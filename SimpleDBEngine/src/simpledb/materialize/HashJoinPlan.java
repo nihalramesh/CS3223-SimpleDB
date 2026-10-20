@@ -116,6 +116,14 @@ public class HashJoinPlan implements Plan {
       return sch;
    }
 
+   public Plan[] children() {
+      return new Plan[] { p1, p2 };
+   }
+
+   public String description() {
+      return "HashJoinPlan(fields=" + fldname1 + "=" + fldname2 + ")";
+   }
+
    private int materializedSize(Plan p) {
       return new MaterializePlan(tx, p).blocksAccessed(); // not opened; just for analysis
    }

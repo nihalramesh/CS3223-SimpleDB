@@ -98,5 +98,13 @@ public class MergeJoinPlan implements Plan {
    public Schema schema() {
       return sch;
    }
+
+   public Plan[] children() {
+      return new Plan[] { p1, p2 };
+   }
+
+   public String description() {
+      return "MergeJoinPlan(fields=" + fldname1 + "=" + fldname2 + ")";
+   }
 }
 

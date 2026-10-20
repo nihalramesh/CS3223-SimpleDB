@@ -1,5 +1,6 @@
 import java.sql.*;
 import java.util.Scanner;
+import simpledb.jdbc.PlanStatement;
 import simpledb.jdbc.embedded.EmbeddedDriver;
 import simpledb.jdbc.network.NetworkDriver;
 
@@ -18,6 +19,8 @@ public class SimpleIJ {
             String cmd = sc.nextLine().trim();
             if (cmd.startsWith("exit"))
                break;
+            else if (cmd.startsWith("explain "))
+               doExplain(stmt, cmd.substring("explain ".length()).trim());
             else if (cmd.startsWith("select"))
                doQuery(stmt, cmd);
             else
@@ -29,6 +32,16 @@ public class SimpleIJ {
          e.printStackTrace();
       }
       sc.close();
+   }
+
+   private static void doExplain(Statement stmt, String cmd) {
+      try {
+         String plan = ((PlanStatement) stmt).explain(cmd);
+         System.out.println(plan);
+      }
+      catch (SQLException e) {
+         System.out.println("SQL Exception: " + e.getMessage());
+      }
    }
 
    private static void doQuery(Statement stmt, String cmd) {

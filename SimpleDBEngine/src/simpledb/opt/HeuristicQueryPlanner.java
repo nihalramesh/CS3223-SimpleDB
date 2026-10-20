@@ -56,7 +56,10 @@ public class HeuristicQueryPlanner implements QueryPlanner {
          currentplan = new SortPlan(tx, currentplan, data.sortFields(), data.sortDirections());
 
       // Step 6.  Project on the field names and return
-      return new ProjectPlan(currentplan, data.fields());
+      currentplan = new ProjectPlan(currentplan, data.fields());
+      if (data.isDistinct())
+         currentplan = new DistinctPlan(currentplan);
+      return currentplan;
    }
    
    private Plan getLowestSelectPlan() {

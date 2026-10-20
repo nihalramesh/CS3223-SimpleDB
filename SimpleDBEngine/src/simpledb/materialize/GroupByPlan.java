@@ -106,4 +106,12 @@ public class GroupByPlan implements Plan {
    public Schema schema() {
       return sch;
    }
+
+   public Plan[] children() {
+      return new Plan[] { p };
+   }
+
+   public String description() {
+      return "GroupByPlan(fields=" + groupfields + ")";
+   }
 }

@@ -76,4 +76,12 @@ public class ProductPlan implements Plan {
    public Schema schema() {
       return schema;
    }
+
+   public Plan[] children() {
+      return new Plan[] { p1, p2 };
+   }
+
+   public String description() {
+      return "ProductPlan";
+   }
 }

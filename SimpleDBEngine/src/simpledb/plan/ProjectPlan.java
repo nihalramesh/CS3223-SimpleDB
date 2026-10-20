@@ -69,4 +69,12 @@ public class ProjectPlan implements Plan {
    public Schema schema() {
       return schema;
    }
+
+   public Plan[] children() {
+      return new Plan[] { p };
+   }
+
+   public String description() {
+      return "ProjectPlan(fields=" + schema.fields() + ")";
+   }
 }

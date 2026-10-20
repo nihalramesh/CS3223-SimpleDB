@@ -76,4 +76,12 @@ public class IndexSelectPlan implements Plan {
    public Schema schema() {
       return p.schema(); 
    }
+
+   public Plan[] children() {
+      return new Plan[] { p };
+   }
+
+   public String description() {
+      return "IndexSelectPlan(value=" + val + ")";
+   }
 }

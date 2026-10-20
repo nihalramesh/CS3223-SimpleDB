@@ -52,6 +52,8 @@ public class BetterQueryPlanner implements QueryPlanner {
       
       //Step 4: Project on the field names
       p = new ProjectPlan(p, data.fields());
+      if (data.isDistinct())
+         p = new DistinctPlan(p);
       return p;
    }
 }
