@@ -55,4 +55,8 @@ public class CountFn implements AggregationFn {
    public Constant value() {
       return new Constant(count);
    }
+   
+   public String toString() {
+      return "count(" + fldname + ")";
+   }
 }

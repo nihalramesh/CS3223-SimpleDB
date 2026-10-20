@@ -6,7 +6,7 @@ import simpledb.record.*;
 import simpledb.query.*;
 import simpledb.metadata.*;
 import simpledb.index.planner.*;
-import simpledb.materialize.MergeJoinPlan;
+import simpledb.materialize.*;
 import simpledb.multibuffer.MultibufferProductPlan;
 import simpledb.plan.*;
 
@@ -55,8 +55,9 @@ class TablePlanner {
     * Constructs a join plan of the specified plan
     * and the table.  The method tries, in order of
     * preference: an indexjoin (if an equality join field
-    * is indexed), a mergejoin (if an equality join field
-    * exists but is not indexed), and finally a
+    * is indexed), the cheaper of a hashjoin and a mergejoin
+    * (if an equality join field exists but is not indexed),
+    * and finally a
     * nestedloopjoin, which works for any join predicate.
     * The method returns null if no join is possible.
     * @param current the specified plan
@@ -69,7 +70,7 @@ class TablePlanner {
          return null;
       Plan p = makeIndexJoin(current, currsch);
       if (p == null)
-         p = makeMergeJoin(current, currsch);
+         p = makeEquiJoin(current, currsch);
       if (p == null)
          p = makeNestedLoopJoin(current, currsch, joinpred);
       return p;
@@ -112,24 +113,55 @@ class TablePlanner {
    }
    
    /**
-    * Tries to construct a mergejoin plan, for the case when
+    * Tries to construct an equijoin plan, for the case when
     * the join predicate equates a field of this table with a
     * field of the current plan but no index is available.
-    * Both sides are sorted on the join field and merged in a
-    * single pass, avoiding the need to enumerate a full cross
-    * product.
+    * Both a hashjoin and a mergejoin are considered, and the
+    * one with the lower estimated total cost (including the
+    * one-time cost of partitioning or sorting) is chosen.
     */
-   private Plan makeMergeJoin(Plan current, Schema currsch) {
+   private Plan makeEquiJoin(Plan current, Schema currsch) {
       for (String fldname : myschema.fields()) {
          String outerfield = mypred.equatesWithField(fldname);
          if (outerfield != null && currsch.hasField(outerfield)) {
             Plan rhs = addSelectPred(myplan);
-            System.out.println("mergejoin on " + outerfield + "=" + fldname + " used");
-            Plan p = new MergeJoinPlan(tx, current, rhs, outerfield, fldname);
+            HashJoinPlan hash = new HashJoinPlan(tx, current, rhs, outerfield, fldname);
+            MergeJoinPlan merge = new MergeJoinPlan(tx, current, rhs, outerfield, fldname);
+            int hashcost = hash.partitionCost() + hash.blocksAccessed();
+            int mergecost = sortCost(current) + sortCost(rhs) + merge.blocksAccessed();
+            Plan p;
+            if (hashcost < mergecost) {
+               System.out.println("hashjoin on " + outerfield + "=" + fldname + " used"
+                     + " (est. cost " + hashcost + " vs mergejoin " + mergecost + ")");
+               p = hash;
+            }
+            else {
+               System.out.println("mergejoin on " + outerfield + "=" + fldname + " used"
+                     + " (est. cost " + mergecost + " vs hashjoin " + hashcost + ")");
+               p = merge;
+            }
             return addJoinPred(p, currsch);
          }
       }
       return null;
+   }
+   
+   /**
+    * Estimates the one-time cost of sorting the output of p:
+    * reading p and writing the initial runs, then reading and
+    * writing every block once per merge iteration until at
+    * most two runs remain (as done by SortPlan).
+    * Assumes one initial run per block.
+    */
+   private int sortCost(Plan p) {
+      int blocks = new MaterializePlan(tx, p).blocksAccessed();
+      int runs = Math.max(1, blocks);
+      int iterations = 0;
+      while (runs > 2) {
+         runs = (runs + 1) / 2;
+         iterations++;
+      }
+      return p.blocksAccessed() + blocks + 2 * blocks * iterations;
    }
 
    /**
