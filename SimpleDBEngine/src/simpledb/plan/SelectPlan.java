@@ -83,4 +83,12 @@ public class SelectPlan implements Plan {
    public Schema schema() {
       return p.schema();
    }
+
+   public Plan[] children() {
+      return new Plan[] { p };
+   }
+
+   public String description() {
+      return "SelectPlan(predicate=" + pred + ")";
+   }
 }

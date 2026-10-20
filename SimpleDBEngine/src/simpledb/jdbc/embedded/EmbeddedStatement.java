@@ -4,12 +4,13 @@ import java.sql.SQLException;
 import simpledb.tx.Transaction;
 import simpledb.plan.*;
 import simpledb.jdbc.StatementAdapter;
+import simpledb.jdbc.PlanStatement;
 
 /**
  * The embedded implementation of Statement.
  * @author Edward Sciore
  */
-class EmbeddedStatement extends StatementAdapter {
+class EmbeddedStatement extends StatementAdapter implements PlanStatement {
    private EmbeddedConnection conn;
    private Planner planner;
    
@@ -47,6 +48,17 @@ class EmbeddedStatement extends StatementAdapter {
          int result = planner.executeUpdate(cmd, tx);
          conn.commit();
          return result;
+      }
+      catch(RuntimeException e) {
+         conn.rollback();
+         throw new SQLException(e);
+      }
+   }
+
+   public String explain(String qry) throws SQLException {
+      try {
+         Transaction tx = conn.getTransaction();
+         return planner.explainQueryPlan(qry, tx);
       }
       catch(RuntimeException e) {
          conn.rollback();

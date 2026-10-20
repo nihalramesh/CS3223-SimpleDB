@@ -15,6 +15,8 @@ public class SortPlan implements Plan {
    private Plan p;
    private Schema sch;
    private RecordComparator comp;
+   private List<String> sortfields;
+   private List<Boolean> sortdirections;
    
    /**
     * Create a sort plan for the specified query.
@@ -26,6 +28,8 @@ public class SortPlan implements Plan {
       this.tx = tx;
       this.p = p;
       sch = p.schema();
+      this.sortfields = new ArrayList<>(sortfields);
+      this.sortdirections = new ArrayList<>(sortDirections);
       comp = new RecordComparator(sortfields, sortDirections);
    }
    
@@ -88,6 +92,25 @@ public class SortPlan implements Plan {
    public Schema schema() {
       return sch;
    }
+
+   public Plan[] children() {
+      return new Plan[] { p };
+   }
+
+   public String description() {
+      boolean allAscending = true;
+      for (Boolean ascending : sortdirections)
+         if (!ascending) {
+            allAscending = false;
+            break;
+         }
+
+      if (allAscending)
+         return "SortPlan(fields=" + sortfields + ")";
+      return "SortPlan(fields=" + sortfields + ", directions="
+            + sortdirections + ")";
+   }
+
    
    private List<TempTable> splitIntoRuns(Scan src) {
       List<TempTable> temps = new ArrayList<>();

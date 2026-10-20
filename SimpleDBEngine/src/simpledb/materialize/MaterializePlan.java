@@ -84,4 +84,12 @@ public class MaterializePlan implements Plan {
    public Schema schema() {
       return srcplan.schema();
    }
+
+   public Plan[] children() {
+      return new Plan[] { srcplan };
+   }
+
+   public String description() {
+      return "MaterializePlan";
+   }
 }

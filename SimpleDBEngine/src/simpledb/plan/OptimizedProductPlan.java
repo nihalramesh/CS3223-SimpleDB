@@ -38,4 +38,12 @@ public class OptimizedProductPlan implements Plan {
    public Schema schema() {
       return bestplan.schema();
    }
+
+   public Plan[] children() {
+      return new Plan[] { bestplan };
+   }
+
+   public String description() {
+      return "OptimizedProductPlan";
+   }
 }

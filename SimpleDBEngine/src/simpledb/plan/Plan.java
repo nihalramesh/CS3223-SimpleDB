@@ -45,4 +45,20 @@ public interface Plan {
     * @return the query's schema
     */
    public Schema schema();
+
+   /**
+    * Returns the child plans used to construct this plan.
+    * The default is an empty list for leaf plans.
+    */
+   public default Plan[] children() {
+      return new Plan[0];
+   }
+
+   /**
+    * Returns the label used when displaying this plan.
+    */
+   public default String description() {
+      return getClass().getSimpleName();
+   }
+
 }

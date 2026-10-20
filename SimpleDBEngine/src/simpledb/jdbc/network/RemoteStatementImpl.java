@@ -39,6 +39,17 @@ class RemoteStatementImpl extends UnicastRemoteObject implements RemoteStatement
          throw e;
       }
    }
+
+   public String explain(String qry) throws RemoteException {
+      try {
+         Transaction tx = rconn.getTransaction();
+         return planner.explainQueryPlan(qry, tx);
+      }
+      catch(RuntimeException e) {
+         rconn.rollback();
+         throw e;
+      }
+   }
    
    /**
     * Executes the specified SQL update command.

@@ -98,6 +98,14 @@ public class MultibufferProductPlan implements Plan {
       return schema;
    }
 
+   public Plan[] children() {
+      return new Plan[] { lhs, rhs };
+   }
+
+   public String description() {
+      return "MultibufferProductPlan";
+   }
+
    private TempTable copyRecordsFrom(Plan p) {
       Scan   src = p.open(); 
       Schema sch = p.schema();
