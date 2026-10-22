@@ -1,6 +1,8 @@
 package simpledb.plan;
 
 import static java.sql.Types.INTEGER;
+import static java.sql.Types.DOUBLE;
+import static java.sql.Types.VARCHAR;
 import java.util.*;
 import simpledb.tx.Transaction;
 import simpledb.materialize.AggregationFn;
@@ -164,7 +166,7 @@ public class QueryVerifier {
       Expression newval = data.newValue();
       if (newval.isFieldName()) {
          int type = scope.typeOf(newval);
-         if (type != sch.type(target))
+         if (!assignable(type, sch.type(target)))
             throw new SemanticException("cannot set " + target + " (" + typeName(sch.type(target))
                   + ") to " + newval + " (" + typeName(type) + ")");
       }
@@ -260,28 +262,29 @@ public class QueryVerifier {
 
    /**
     * Both sides of every term must refer to valid fields
-    * and have the same type.
+    * and have the same type (an int can be compared with a double).
     */
    private void checkPredicate(Predicate pred, Scope scope) {
       for (Term t : pred.terms()) {
          int ltype = scope.typeOf(t.lhs());
          int rtype = scope.typeOf(t.rhs());
-         if (ltype != rtype)
+         if (!comparable(ltype, rtype))
             throw new SemanticException("cannot compare " + show(t.lhs()) + " (" + typeName(ltype)
                   + ") with " + show(t.rhs()) + " (" + typeName(rtype) + ")");
       }
    }
 
    /**
-    * A constant stored in a field must have the field's type,
-    * and a string must not be longer than the field allows.
+    * A constant stored in a field must have the field's type
+    * (an int can be stored in a double field), and a string
+    * must not be longer than the field allows.
     */
    private void checkAssignment(String fldname, Schema sch, Constant val) {
       int type = sch.type(fldname);
-      if (val.type() != type)
+      if (!assignable(val.type(), type))
          throw new SemanticException("cannot store " + show(new Expression(val)) + " (" + typeName(val.type())
                + ") in field " + fldname + " (" + typeName(type) + ")");
-      if (type != INTEGER && val.asString().length() > sch.length(fldname))
+      if (type == VARCHAR && val.asString().length() > sch.length(fldname))
          throw new SemanticException("value '" + val + "' is too long for field " + fldname
                + " (varchar(" + sch.length(fldname) + "))");
    }
@@ -297,8 +300,24 @@ public class QueryVerifier {
       return null;
    }
 
+   /**
+    * Ints and doubles can be compared with each other.
+    */
+   private static boolean comparable(int type1, int type2) {
+      return type1 == type2 || (type1 != VARCHAR && type2 != VARCHAR);
+   }
+
+   /**
+    * A value can be stored in a field of the same type, and an
+    * int can be stored in a double field (but not the reverse,
+    * which would lose the fractional part).
+    */
+   private static boolean assignable(int valtype, int fldtype) {
+      return valtype == fldtype || (valtype == INTEGER && fldtype == DOUBLE);
+   }
+
    private static String typeName(int type) {
-      return (type == INTEGER) ? "int" : "varchar";
+      return (type == INTEGER) ? "int" : (type == DOUBLE) ? "double" : "varchar";
    }
 
    /**
@@ -306,7 +325,7 @@ public class QueryVerifier {
     * so string constants appear in quotes.
     */
    private static String show(Expression e) {
-      if (!e.isFieldName() && e.asConstant().type() != INTEGER)
+      if (!e.isFieldName() && e.asConstant().type() == VARCHAR)
          return "'" + e.asConstant() + "'";
       return e.toString();
    }
