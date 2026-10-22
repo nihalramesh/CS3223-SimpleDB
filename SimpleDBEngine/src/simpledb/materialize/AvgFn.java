@@ -1,18 +1,18 @@
 package simpledb.materialize;
 
 import static java.sql.Types.INTEGER;
+import static java.sql.Types.DOUBLE;
 import simpledb.query.*;
 import simpledb.record.Schema;
 
 /**
  * The <i>avg</i> aggregation function.
- * The aggregated field must be an integer field.
- * Since SimpleDB only supports integer and string values,
- * the average is an integer, truncated toward zero.
+ * The aggregated field must be an integer or double field.
+ * The average is always a double.
  */
 public class AvgFn implements AggregationFn {
    private String fldname;
-   private long sum;
+   private double sum;
    private int count;
    
    /**
@@ -29,7 +29,7 @@ public class AvgFn implements AggregationFn {
     * @see simpledb.materialize.AggregationFn#processFirst(simpledb.query.Scan)
     */
    public void processFirst(Scan s) {
-      sum = s.getInt(fldname);
+      sum = s.getVal(fldname).asDouble();
       count = 1;
    }
    
@@ -38,7 +38,7 @@ public class AvgFn implements AggregationFn {
     * @see simpledb.materialize.AggregationFn#processNext(simpledb.query.Scan)
     */
    public void processNext(Scan s) {
-      sum += s.getInt(fldname);
+      sum += s.getVal(fldname).asDouble();
       count++;
    }
    
@@ -55,19 +55,20 @@ public class AvgFn implements AggregationFn {
     * @see simpledb.materialize.AggregationFn#value()
     */
    public Constant value() {
-      return new Constant((int) (sum / count));
+      return new Constant(sum / count);
    }
    
    /**
-    * Only integer fields can be averaged.
+    * Only integer and double fields can be averaged.
     * @see simpledb.materialize.AggregationFn#addField(Schema, Schema)
     */
    public void addField(Schema sch, Schema source) {
       if (!source.hasField(fldname))
          throw new RuntimeException("field " + fldname + " not found.");
-      if (source.type(fldname) != INTEGER)
-         throw new RuntimeException("cannot average non-integer field " + fldname);
-      sch.addIntField(fieldName());
+      int type = source.type(fldname);
+      if (type != INTEGER && type != DOUBLE)
+         throw new RuntimeException("cannot average non-numeric field " + fldname);
+      sch.addDoubleField(fieldName());
    }
    
    public String toString() {

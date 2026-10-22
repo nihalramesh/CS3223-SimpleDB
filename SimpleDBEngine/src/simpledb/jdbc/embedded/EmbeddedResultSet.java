@@ -72,6 +72,21 @@ public class EmbeddedResultSet extends ResultSetAdapter {
    }
 
    /**
+    * Returns the double value of the specified field,
+    * by returning the corresponding value on the saved scan.
+    */
+   public double getDouble(String fldname) throws SQLException {
+      try {
+         fldname = fldname.toLowerCase(); // to ensure case-insensitivity
+         return s.getVal(fldname).asDouble();
+      }
+      catch(RuntimeException e) {
+         conn.rollback();
+         throw new SQLException(e);
+      }
+   }
+
+   /**
     * Returns the result set's metadata,
     * by passing its schema into the EmbeddedMetaData constructor.
     */

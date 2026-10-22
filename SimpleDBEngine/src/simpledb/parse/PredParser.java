@@ -14,6 +14,8 @@ public class PredParser {
    public void constant() {
       if (lex.matchStringConstant())
          lex.eatStringConstant();
+      else if (lex.matchDoubleConstant())
+         lex.eatDoubleConstant();
       else
          lex.eatIntConstant();
    }

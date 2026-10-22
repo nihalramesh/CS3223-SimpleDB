@@ -48,6 +48,14 @@ public class Schema {
    public void addStringField(String fldname, int length) {
       addField(fldname, VARCHAR, length);
    }
+
+   /**
+    * Add a double field to the schema.
+    * @param fldname the name of the field
+    */
+   public void addDoubleField(String fldname) {
+      addField(fldname, DOUBLE, 0);
+   }
    
    /**
     * Add a field to the schema having the same

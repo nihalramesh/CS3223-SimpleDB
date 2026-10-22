@@ -116,7 +116,21 @@ public class Transaction {
       Buffer buff = mybuffers.getBuffer(blk);
       return buff.contents().getInt(offset);
    }
-   
+
+   /**
+    * Return the double value stored at the
+    * specified offset of the specified block.
+    * Works the same way as getInt.
+    * @param blk a reference to a disk block
+    * @param offset the byte offset within the block
+    * @return the double stored at that offset
+    */
+   public double getDouble(BlockId blk, int offset) {
+      concurMgr.sLock(blk);
+      Buffer buff = mybuffers.getBuffer(blk);
+      return buff.contents().getDouble(offset);
+   }
+
    /**
     * Return the string value stored at the
     * specified offset of the specified block.
@@ -177,6 +191,26 @@ public class Transaction {
          lsn = recoveryMgr.setString(buff, offset, val);
       Page p = buff.contents();
       p.setString(offset, val);
+      buff.setModified(txnum, lsn);
+   }
+
+   /**
+    * Store a double at the specified offset
+    * of the specified block.
+    * Works the same way as setInt, logging the old
+    * value so that it can be restored on rollback.
+    * @param blk a reference to the disk block
+    * @param offset a byte offset within that block
+    * @param val the value to be stored
+    */
+   public void setDouble(BlockId blk, int offset, double val, boolean okToLog) {
+      concurMgr.xLock(blk);
+      Buffer buff = mybuffers.getBuffer(blk);
+      int lsn = -1;
+      if (okToLog)
+         lsn = recoveryMgr.setDouble(buff, offset, val);
+      Page p = buff.contents();
+      p.setDouble(offset, val);
       buff.setModified(txnum, lsn);
    }
 

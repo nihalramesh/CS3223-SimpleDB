@@ -72,6 +72,18 @@ public class RecoveryMgr {
    }
 
    /**
+    * Write a setdouble record to the log and return its lsn.
+    * @param buff the buffer containing the page
+    * @param offset the offset of the value in the page
+    * @param newval the value to be written
+    */
+   public int setDouble(Buffer buff, int offset, double newval) {
+      double oldval = buff.contents().getDouble(offset);
+      BlockId blk = buff.block();
+      return SetDoubleRecord.writeToLog(lm, txnum, blk, offset, oldval);
+   }
+
+   /**
     * Write a setstring record to the log and return its lsn.
     * @param buff the buffer containing the page
     * @param offset the offset of the value in the page

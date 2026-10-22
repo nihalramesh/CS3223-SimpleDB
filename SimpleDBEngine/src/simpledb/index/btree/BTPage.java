@@ -1,6 +1,7 @@
 package simpledb.index.btree;
 
 import static java.sql.Types.INTEGER;
+import static java.sql.Types.DOUBLE;
 import simpledb.file.BlockId;
 import simpledb.tx.Transaction;
 import simpledb.record.*;
@@ -130,6 +131,8 @@ public class BTPage {
          int offset = layout.offset(fldname);
          if (layout.schema().type(fldname) == INTEGER)
             tx.setInt(blk, pos + offset, 0, false);
+         else if (layout.schema().type(fldname) == DOUBLE)
+            tx.setDouble(blk, pos + offset, 0, false);
          else
             tx.setString(blk, pos + offset, "", false);
       }
@@ -217,6 +220,8 @@ public class BTPage {
       int type = layout.schema().type(fldname);
       if (type == INTEGER)
          return new Constant(getInt(slot, fldname));
+      else if (type == DOUBLE)
+         return new Constant(tx.getDouble(currentblk, fldpos(slot, fldname)));
       else
          return new Constant(getString(slot, fldname));
    }
@@ -235,6 +240,8 @@ public class BTPage {
       int type = layout.schema().type(fldname);
       if (type == INTEGER)
          setInt(slot, fldname, val.asInt());
+      else if (type == DOUBLE)
+         tx.setDouble(currentblk, fldpos(slot, fldname), val.asDouble(), true);
       else
          setString(slot, fldname, val.asString());
    }

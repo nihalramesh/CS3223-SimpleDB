@@ -78,6 +78,22 @@ class RemoteResultSetImpl extends UnicastRemoteObject implements RemoteResultSet
    }
 
    /**
+    * Returns the double value of the specified field,
+    * by returning the corresponding value on the saved scan.
+    * @see simpledb.jdbc.network.RemoteResultSet#getDouble(java.lang.String)
+    */
+   public double getDouble(String fldname) throws RemoteException {
+      try {
+         fldname = fldname.toLowerCase(); // to ensure case-insensitivity
+         return s.getVal(fldname).asDouble();
+      }
+      catch(RuntimeException e) {
+         rconn.rollback();
+         throw e;
+      }
+   }
+
+   /**
     * Returns the result set's metadata,
     * by passing its schema into the RemoteMetaData constructor.
     * @see simpledb.jdbc.network.RemoteResultSet#getMetaData()
