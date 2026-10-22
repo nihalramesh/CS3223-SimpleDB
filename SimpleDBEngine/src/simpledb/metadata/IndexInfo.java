@@ -1,6 +1,7 @@
 package simpledb.metadata;
 
 import static java.sql.Types.INTEGER;
+import static java.sql.Types.DOUBLE;
 import simpledb.tx.Transaction;
 import simpledb.record.*;
 import simpledb.index.Index;
@@ -107,6 +108,8 @@ public class IndexInfo {
       sch.addIntField("id");
       if (tblSchema.type(fldname) == INTEGER)
          sch.addIntField("dataval");
+      else if (tblSchema.type(fldname) == DOUBLE)
+         sch.addDoubleField("dataval");
       else {
          int fldlen = tblSchema.length(fldname);
          sch.addStringField("dataval", fldlen);

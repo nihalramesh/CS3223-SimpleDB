@@ -2,6 +2,7 @@ package simpledb.jdbc.embedded;
 
 import java.sql.SQLException;
 import static java.sql.Types.INTEGER;
+import static java.sql.Types.DOUBLE;
 import simpledb.record.Schema;
 import simpledb.jdbc.ResultSetMetaDataAdapter;
 
@@ -63,7 +64,9 @@ public class EmbeddedMetaData extends ResultSetMetaDataAdapter {
    public int getColumnDisplaySize(int column) throws SQLException {
       String fldname = getColumnName(column);
       int fldtype = sch.type(fldname);
-      int fldlength = (fldtype == INTEGER) ? 6 : sch.length(fldname);
+      int fldlength = (fldtype == INTEGER) ? 6
+                    : (fldtype == DOUBLE) ? 10
+                    : sch.length(fldname);
       return Math.max(fldname.length(), fldlength) + 1;
    }
 }

@@ -1,16 +1,19 @@
 package simpledb.materialize;
 
 import static java.sql.Types.INTEGER;
+import static java.sql.Types.DOUBLE;
 import simpledb.query.*;
 import simpledb.record.Schema;
 
 /**
  * The <i>sum</i> aggregation function.
- * The aggregated field must be an integer field.
+ * The aggregated field must be an integer or double field;
+ * the sum has the same type as the field.
  */
 public class SumFn implements AggregationFn {
    private String fldname;
-   private int sum;
+   private double sum;
+   private boolean isDouble; // whether the summed field is a double
    
    /**
     * Create a sum aggregation function for the specified field.
@@ -26,7 +29,7 @@ public class SumFn implements AggregationFn {
     * @see simpledb.materialize.AggregationFn#processFirst(simpledb.query.Scan)
     */
    public void processFirst(Scan s) {
-      sum = s.getInt(fldname);
+      sum = s.getVal(fldname).asDouble();
    }
    
    /**
@@ -34,7 +37,7 @@ public class SumFn implements AggregationFn {
     * @see simpledb.materialize.AggregationFn#processNext(simpledb.query.Scan)
     */
    public void processNext(Scan s) {
-      sum += s.getInt(fldname);
+      sum += s.getVal(fldname).asDouble();
    }
    
    /**
@@ -58,19 +61,24 @@ public class SumFn implements AggregationFn {
     * @see simpledb.materialize.AggregationFn#value()
     */
    public Constant value() {
-      return new Constant(sum);
+      return isDouble ? new Constant(sum) : new Constant((int) sum);
    }
    
    /**
-    * Only integer fields can be summed.
+    * Only integer and double fields can be summed.
     * @see simpledb.materialize.AggregationFn#addField(Schema, Schema)
     */
    public void addField(Schema sch, Schema source) {
       if (!source.hasField(fldname))
          throw new RuntimeException("field " + fldname + " not found.");
-      if (source.type(fldname) != INTEGER)
-         throw new RuntimeException("cannot sum non-integer field " + fldname);
-      sch.addIntField(fieldName());
+      int type = source.type(fldname);
+      if (type != INTEGER && type != DOUBLE)
+         throw new RuntimeException("cannot sum non-numeric field " + fldname);
+      isDouble = (type == DOUBLE);
+      if (isDouble)
+         sch.addDoubleField(fieldName());
+      else
+         sch.addIntField(fieldName());
    }
    
    public String toString() {

@@ -18,7 +18,8 @@ public class Lexer {
    public Lexer(String s) {
       initKeywords();
       tok = new StreamTokenizer(new StringReader(s));
-      tok.ordinaryChar('.');   //disallow "." in identifiers
+      // "." is read as part of a number, so that decimals
+      // such as 19.99 can be used as constants
       tok.wordChars('_', '_'); //allow "_" in identifiers
       tok.lowerCaseMode(true); //ids and keywords are converted
       nextToken();
@@ -52,7 +53,18 @@ public class Lexer {
     * @return true if the current token is an integer
     */
    public boolean matchIntConstant() {
-      return tok.ttype == StreamTokenizer.TT_NUMBER;
+      return tok.ttype == StreamTokenizer.TT_NUMBER
+            && tok.nval == Math.rint(tok.nval);
+   }
+
+   /**
+    * Returns true if the current token is a number
+    * with a fractional part, such as 19.99.
+    * @return true if the current token is a double
+    */
+   public boolean matchDoubleConstant() {
+      return tok.ttype == StreamTokenizer.TT_NUMBER
+            && tok.nval != Math.rint(tok.nval);
    }
    
    /**
@@ -162,6 +174,20 @@ public class Lexer {
       nextToken();
       return i;
    }
+
+   /**
+    * Throws an exception if the current token is not
+    * a double.
+    * Otherwise, returns that double and moves to the next token.
+    * @return the double value of the current token
+    */
+   public double eatDoubleConstant() {
+      if (!matchDoubleConstant())
+         throw new BadSyntaxException();
+      double d = tok.nval;
+      nextToken();
+      return d;
+   }
    
    /**
     * Throws an exception if the current token is not 
@@ -216,7 +242,7 @@ public class Lexer {
    private void initKeywords() {
       keywords = Arrays.asList("select", "from", "where", "and",
                                "insert", "into", "values", "delete", "update", "set",
-                               "create", "table", "int", "varchar", "view", "as", "index", "on",
+                               "create", "table", "int", "varchar", "double", "view", "as", "index", "on",
                                "using", "hash", "btree", "order", "by", "asc", "desc",
                                "group", "sum", "count", "avg", "min", "max", "distinct");
    }

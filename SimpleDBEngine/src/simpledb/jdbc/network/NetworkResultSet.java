@@ -43,6 +43,15 @@ public class NetworkResultSet extends ResultSetAdapter {
       }
    }
    
+   public double getDouble(String fldname) throws SQLException {
+      try {
+         return rrs.getDouble(fldname);
+      }
+      catch (Exception e) {
+         throw new SQLException(e);
+      }
+   }
+   
    public ResultSetMetaData getMetaData() throws SQLException {
       try {
          RemoteMetaData rmd = rrs.getMetaData();

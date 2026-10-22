@@ -26,6 +26,8 @@ public class Parser {
    public Constant constant() {
       if (lex.matchStringConstant())
          return new Constant(lex.eatStringConstant());
+      else if (lex.matchDoubleConstant())
+         return new Constant(lex.eatDoubleConstant());
       else
          return new Constant(lex.eatIntConstant());
    }
@@ -315,6 +317,10 @@ public class Parser {
       if (lex.matchKeyword("int")) {
          lex.eatKeyword("int");
          schema.addIntField(fldname);
+      }
+      else if (lex.matchKeyword("double")) {
+         lex.eatKeyword("double");
+         schema.addDoubleField(fldname);
       }
       else {
          lex.eatKeyword("varchar");

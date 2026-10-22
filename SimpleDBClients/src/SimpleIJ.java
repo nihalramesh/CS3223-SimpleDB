@@ -1,4 +1,6 @@
 import java.sql.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Scanner;
 import simpledb.jdbc.PlanStatement;
 import simpledb.jdbc.embedded.EmbeddedDriver;
@@ -72,6 +74,16 @@ public class SimpleIJ {
                if (fldtype == Types.INTEGER) {
                   int ival = rs.getInt(fldname);
                   System.out.format(fmt + "d", ival);
+               }
+               else if (fldtype == Types.DOUBLE) {
+                  // round to 4 decimal places, so that values like
+                  // 203.23000000000002 are shown as 203.23
+                  double dval = rs.getDouble(fldname);
+                  String shown = BigDecimal.valueOf(dval).setScale(4, RoundingMode.HALF_UP)
+                        .stripTrailingZeros().toPlainString();
+                  if (!shown.contains("."))
+                     shown += ".0";
+                  System.out.format(fmt + "s", shown);
                }
                else {
                   String sval = rs.getString(fldname);
