@@ -2,6 +2,7 @@ package simpledb.query;
 
 import static java.sql.Types.INTEGER;
 import static java.sql.Types.VARCHAR;
+import static java.sql.Types.DOUBLE;
 
 /**
  * The class that denotes values stored in the database.
@@ -45,14 +46,17 @@ public class Constant implements Comparable<Constant> {
       return (dval != null) ? dval : ival;
    }
 
-   private boolean isNumeric() {
-      return ival != null || dval != null;
+   /**
     * Returns the SQL type of the constant,
     * as defined in java.sql.Types.
-    * @return INTEGER or VARCHAR
+    * @return INTEGER, DOUBLE or VARCHAR
     */
    public int type() {
-      return (ival != null) ? INTEGER : VARCHAR;
+      return (ival != null) ? INTEGER : (dval != null) ? DOUBLE : VARCHAR;
+   }
+
+   private boolean isNumeric() {
+      return ival != null || dval != null;
    }
 
    public boolean equals(Object obj) {
