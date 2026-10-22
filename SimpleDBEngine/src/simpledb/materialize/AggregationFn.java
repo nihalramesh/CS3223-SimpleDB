@@ -29,7 +29,14 @@ public interface AggregationFn {
     * @return the name of the new aggregation field
     */
    String fieldName();
-   
+
+   /**
+    * Return the name of the field being aggregated,
+    * e.g. "sid" for count(sid).
+    * @return the name of the aggregated field
+    */
+   String aggregatedFieldName();
+
    /**
     * Return the computed aggregation value.
     * @return the computed aggregation value

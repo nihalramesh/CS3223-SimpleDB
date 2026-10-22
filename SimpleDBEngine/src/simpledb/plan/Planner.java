@@ -1,6 +1,7 @@
 package simpledb.plan;
 
 import simpledb.tx.Transaction;
+import simpledb.metadata.MetadataMgr;
 import simpledb.parse.*;
 
 /**
@@ -10,10 +11,12 @@ import simpledb.parse.*;
 public class Planner {
    private QueryPlanner qplanner;
    private UpdatePlanner uplanner;
-   
-   public Planner(QueryPlanner qplanner, UpdatePlanner uplanner) {
+   private QueryVerifier verifier;
+
+   public Planner(QueryPlanner qplanner, UpdatePlanner uplanner, MetadataMgr mdm) {
       this.qplanner = qplanner;
       this.uplanner = uplanner;
+      this.verifier = new QueryVerifier(mdm);
    }
    
    /**
@@ -25,7 +28,7 @@ public class Planner {
    public Plan createQueryPlan(String qry, Transaction tx) {
       Parser parser = new Parser(qry);
       QueryData data = parser.query();
-      verifyQuery(data);
+      verifier.verifyQuery(data, tx);
       return qplanner.createPlan(data, tx);
    }
 
@@ -49,7 +52,7 @@ public class Planner {
    public int executeUpdate(String cmd, Transaction tx) {
       Parser parser = new Parser(cmd);
       Object data = parser.updateCmd();
-      verifyUpdate(data);
+      verifier.verifyUpdate(data, tx);
       if (data instanceof InsertData)
          return uplanner.executeInsert((InsertData)data, tx);
       else if (data instanceof DeleteData)
@@ -64,13 +67,5 @@ public class Planner {
          return uplanner.executeCreateIndex((CreateIndexData)data, tx);
       else
          return 0;
-   }
- 
-   // SimpleDB does not verify queries, although it should.
-   private void verifyQuery(QueryData data) {
-   }
-
-   // SimpleDB does not verify updates, although it should.
-   private void verifyUpdate(Object data) {
    }
 }

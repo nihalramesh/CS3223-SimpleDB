@@ -5,6 +5,11 @@ import simpledb.tx.Transaction;
 import simpledb.record.*;
 
 public class MetadataMgr {
+   // the max chars in a table, field, view or index name
+   public static final int MAX_NAME = TableMgr.MAX_NAME;
+   // the max chars in a view definition
+   public static final int MAX_VIEWDEF = ViewMgr.MAX_VIEWDEF;
+
    private static TableMgr  tblmgr;
    private static ViewMgr   viewmgr;
    private static StatMgr   statmgr;

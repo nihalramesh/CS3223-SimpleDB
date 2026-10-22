@@ -47,6 +47,14 @@ public class MinFn implements AggregationFn {
    }
    
    /**
+    * Return the name of the field being aggregated.
+    * @see simpledb.materialize.AggregationFn#aggregatedFieldName()
+    */
+   public String aggregatedFieldName() {
+      return fldname;
+   }
+   
+   /**
     * Return the current minimum.
     * @see simpledb.materialize.AggregationFn#value()
     */

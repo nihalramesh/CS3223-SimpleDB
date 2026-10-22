@@ -36,6 +36,14 @@ public class Predicate {
    }
 
    /**
+    * Returns the terms of the predicate.
+    * @return the list of terms
+    */
+   public List<Term> terms() {
+      return terms;
+   }
+
+   /**
     * Returns true if the predicate evaluates to true
     * with respect to the specified scan.
     * @param s the scan

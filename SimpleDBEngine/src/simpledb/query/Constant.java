@@ -1,5 +1,8 @@
 package simpledb.query;
 
+import static java.sql.Types.INTEGER;
+import static java.sql.Types.VARCHAR;
+
 /**
  * The class that denotes values stored in the database.
  * @author Edward Sciore
@@ -23,7 +26,16 @@ public class Constant implements Comparable<Constant> {
    public String asString() {
       return sval;
    }
-   
+
+   /**
+    * Returns the SQL type of the constant,
+    * as defined in java.sql.Types.
+    * @return INTEGER or VARCHAR
+    */
+   public int type() {
+      return (ival != null) ? INTEGER : VARCHAR;
+   }
+
    public boolean equals(Object obj) {
       if (obj == null || getClass() != obj.getClass())
          return false;
