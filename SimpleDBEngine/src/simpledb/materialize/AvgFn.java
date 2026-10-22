@@ -51,6 +51,14 @@ public class AvgFn implements AggregationFn {
    }
    
    /**
+    * Return the name of the field being aggregated.
+    * @see simpledb.materialize.AggregationFn#aggregatedFieldName()
+    */
+   public String aggregatedFieldName() {
+      return fldname;
+   }
+   
+   /**
     * Return the current average.
     * @see simpledb.materialize.AggregationFn#value()
     */

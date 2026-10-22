@@ -5,7 +5,7 @@ import simpledb.tx.Transaction;
 
 class ViewMgr {
    // the max chars in a view definition.
-   private static final int MAX_VIEWDEF = 100;
+   static final int MAX_VIEWDEF = 100;
 
    TableMgr tblMgr;
 
