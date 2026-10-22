@@ -2,7 +2,11 @@ package simpledb.plan;
 
 import simpledb.materialize.SortPlan;
 
-/** Formats a query plan as an indented operator tree. */
+/**
+ * Formats a query plan as an indented operator tree.
+ * Each node is annotated with the planner's estimates for
+ * that subtree: blocks accessed and records output.
+ */
 public class PlanPrinter {
    private PlanPrinter() {
    }
@@ -23,7 +27,10 @@ public class PlanPrinter {
       for (int i = 0; i < depth; i++)
          result.append("  ");
 
-      result.append(plan.description()).append("\n");
+      result.append(plan.description())
+            .append("  [blocks=").append(plan.blocksAccessed())
+            .append(", records=").append(plan.recordsOutput())
+            .append("]\n");
 
       for (Plan child : plan.children())
          append(child, result, depth + 1, plan);
