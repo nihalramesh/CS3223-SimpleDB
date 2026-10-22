@@ -39,6 +39,22 @@ public class Term {
    }
 
    /**
+    * Returns the left-hand expression of the term.
+    * @return the left-hand expression
+    */
+   public Expression lhs() {
+      return lhs;
+   }
+
+   /**
+    * Returns the right-hand expression of the term.
+    * @return the right-hand expression
+    */
+   public Expression rhs() {
+      return rhs;
+   }
+
+   /**
     * Determines whether this term is satisfied by the current record
     * of the specified scan.
     *

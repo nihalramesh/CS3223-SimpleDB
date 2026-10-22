@@ -49,6 +49,14 @@ public class CountFn implements AggregationFn {
    }
    
    /**
+    * Return the name of the field being aggregated.
+    * @see simpledb.materialize.AggregationFn#aggregatedFieldName()
+    */
+   public String aggregatedFieldName() {
+      return fldname;
+   }
+   
+   /**
     * Return the current count.
     * @see simpledb.materialize.AggregationFn#value()
     */

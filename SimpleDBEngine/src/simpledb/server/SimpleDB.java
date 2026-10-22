@@ -57,7 +57,7 @@ public class SimpleDB {
       mdm = new MetadataMgr(isnew, tx);
       QueryPlanner qp = new HeuristicQueryPlanner(mdm);
       UpdatePlanner up = new IndexUpdatePlanner(mdm);
-      planner = new Planner(qp, up);
+      planner = new Planner(qp, up, mdm);
       tx.commit();
    }
    
