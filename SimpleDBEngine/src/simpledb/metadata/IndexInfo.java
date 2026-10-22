@@ -66,7 +66,9 @@ public class IndexInfo {
     */
    public int blocksAccessed() {
       int rpb = tx.blockSize() / idxLayout.slotSize();
-      int numblocks = si.recordsOutput() / rpb;
+      // an index occupies at least one block; with 0 blocks the
+      // btree formula takes log(0) and overflows to a negative cost
+      int numblocks = Math.max(1, si.recordsOutput() / rpb);
       if (idxtype.equals("btree"))
          return BTreeIndex.searchCost(numblocks, rpb);
       return HashIndex.searchCost(numblocks, rpb);

@@ -8,7 +8,7 @@ import simpledb.tx.Transaction;
 import simpledb.metadata.MetadataMgr;
 import simpledb.plan.*;
 import simpledb.index.planner.IndexUpdatePlanner;
-import simpledb.opt.HeuristicQueryPlanner;
+import simpledb.opt.DPQueryPlanner;
 
 /**
  * The class that configures the system.
@@ -55,7 +55,7 @@ public class SimpleDB {
          tx.recover();
       }
       mdm = new MetadataMgr(isnew, tx);
-      QueryPlanner qp = new HeuristicQueryPlanner(mdm);
+      QueryPlanner qp = new DPQueryPlanner(mdm);
       UpdatePlanner up = new IndexUpdatePlanner(mdm);
       planner = new Planner(qp, up);
       tx.commit();

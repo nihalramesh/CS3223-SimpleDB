@@ -1,6 +1,6 @@
 package simpledb.opt;
 
-import java.util.Map;
+import java.util.*;
 import simpledb.tx.Transaction;
 import simpledb.record.*;
 import simpledb.query.*;
@@ -15,6 +15,10 @@ import simpledb.plan.*;
  * @author Edward Sciore
  */
 class TablePlanner {
+   // whether to print which access and join methods are chosen;
+   // turned off while an optimizer builds plans only to cost them
+   static boolean verbose = true;
+
    private TablePlan myplan;
    private Predicate mypred;
    private Schema myschema;
@@ -92,7 +96,8 @@ class TablePlanner {
          Constant val = mypred.equatesWithConstant(fldname);
          if (val != null) {
             IndexInfo ii = indexes.get(fldname);
-            System.out.println("index on " + fldname + " used");
+            if (verbose)
+               System.out.println("index on " + fldname + " used");
             return new IndexSelectPlan(myplan, ii, val);
          }
       }
@@ -128,16 +133,19 @@ class TablePlanner {
             HashJoinPlan hash = new HashJoinPlan(tx, current, rhs, outerfield, fldname);
             MergeJoinPlan merge = new MergeJoinPlan(tx, current, rhs, outerfield, fldname);
             int hashcost = hash.partitionCost() + hash.blocksAccessed();
-            int mergecost = sortCost(current) + sortCost(rhs) + merge.blocksAccessed();
+            int mergecost = PlanCost.sortCost(current, tx) + PlanCost.sortCost(rhs, tx)
+                  + merge.blocksAccessed();
             Plan p;
             if (hashcost < mergecost) {
-               System.out.println("hashjoin on " + outerfield + "=" + fldname + " used"
-                     + " (est. cost " + hashcost + " vs mergejoin " + mergecost + ")");
+               if (verbose)
+                  System.out.println("hashjoin on " + outerfield + "=" + fldname + " used"
+                        + " (est. cost " + hashcost + " vs mergejoin " + mergecost + ")");
                p = hash;
             }
             else {
-               System.out.println("mergejoin on " + outerfield + "=" + fldname + " used"
-                     + " (est. cost " + mergecost + " vs hashjoin " + hashcost + ")");
+               if (verbose)
+                  System.out.println("mergejoin on " + outerfield + "=" + fldname + " used"
+                        + " (est. cost " + mergecost + " vs hashjoin " + hashcost + ")");
                p = merge;
             }
             return addJoinPred(p, currsch);
@@ -147,21 +155,42 @@ class TablePlanner {
    }
    
    /**
-    * Estimates the one-time cost of sorting the output of p:
-    * reading p and writing the initial runs, then reading and
-    * writing every block once per merge iteration until at
-    * most two runs remain (as done by SortPlan).
-    * Assumes one initial run per block.
+    * Returns every join plan of the specified plan and this table,
+    * one for each applicable join method: an indexjoin for each
+    * indexed field equated with a field of the current plan, a
+    * hashjoin and a mergejoin on the first equated field, and a
+    * nestedloopjoin. Unlike {@link #makeJoinPlan}, no method is
+    * preferred over another; the caller compares their costs.
+    * The list is empty if no join predicate connects the plan
+    * and this table.
+    * @param current the specified plan
+    * @return the candidate join plans
     */
-   private int sortCost(Plan p) {
-      int blocks = new MaterializePlan(tx, p).blocksAccessed();
-      int runs = Math.max(1, blocks);
-      int iterations = 0;
-      while (runs > 2) {
-         runs = (runs + 1) / 2;
-         iterations++;
+   public List<Plan> joinCandidates(Plan current) {
+      List<Plan> plans = new ArrayList<>();
+      Schema currsch = current.schema();
+      Predicate joinpred = mypred.joinSubPred(myschema, currsch);
+      if (joinpred == null)
+         return plans;
+      for (String fldname : indexes.keySet()) {
+         String outerfield = mypred.equatesWithField(fldname);
+         if (outerfield != null && currsch.hasField(outerfield)) {
+            Plan p = new IndexJoinPlan(current, myplan, indexes.get(fldname), outerfield);
+            p = addSelectPred(p);
+            plans.add(addJoinPred(p, currsch));
+         }
       }
-      return p.blocksAccessed() + blocks + 2 * blocks * iterations;
+      for (String fldname : myschema.fields()) {
+         String outerfield = mypred.equatesWithField(fldname);
+         if (outerfield != null && currsch.hasField(outerfield)) {
+            Plan rhs = addSelectPred(myplan);
+            plans.add(addJoinPred(new HashJoinPlan(tx, current, rhs, outerfield, fldname), currsch));
+            plans.add(addJoinPred(new MergeJoinPlan(tx, current, rhs, outerfield, fldname), currsch));
+            break;
+         }
+      }
+      plans.add(new NestedLoopJoinPlan(current, addSelectPred(myplan), joinpred));
+      return plans;
    }
 
    /**
@@ -174,7 +203,8 @@ class TablePlanner {
     */
    private Plan makeNestedLoopJoin(Plan current, Schema currsch, Predicate joinpred) {
       Plan rhs = addSelectPred(myplan);
-      System.out.println("nestedloopjoin used");
+      if (verbose)
+         System.out.println("nestedloopjoin used");
       return new NestedLoopJoinPlan(current, rhs, joinpred);
    }
    
