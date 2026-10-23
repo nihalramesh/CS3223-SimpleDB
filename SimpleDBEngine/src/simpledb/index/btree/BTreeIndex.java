@@ -37,6 +37,7 @@ public class BTreeIndex implements Index {
          BlockId blk = tx.append(leaftbl);
          BTPage node = new BTPage(tx, blk, leafLayout);
          node.format(blk, -1);
+         node.close();
       }
 
       // deal with the directory

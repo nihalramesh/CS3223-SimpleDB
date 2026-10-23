@@ -59,6 +59,8 @@ class TablePlanner {
     * (if an equality join field exists but is not indexed),
     * and finally a
     * nestedloopjoin, which works for any join predicate.
+    * Only the methods allowed by {@link JoinMethods} are tried;
+    * if none of them applies, a nestedloopjoin is used.
     * The method returns null if no join is possible.
     * @param current the specified plan
     * @return a join plan of the plan and this table
@@ -68,8 +70,11 @@ class TablePlanner {
       Predicate joinpred = mypred.joinSubPred(myschema, currsch);
       if (joinpred == null)
          return null;
-      Plan p = makeIndexJoin(current, currsch);
-      if (p == null)
+      Plan p = null;
+      if (JoinMethods.isAllowed(JoinMethods.INDEX))
+         p = makeIndexJoin(current, currsch);
+      if (p == null && (JoinMethods.isAllowed(JoinMethods.HASH)
+                        || JoinMethods.isAllowed(JoinMethods.MERGE)))
          p = makeEquiJoin(current, currsch);
       if (p == null)
          p = makeNestedLoopJoin(current, currsch, joinpred);
@@ -130,7 +135,9 @@ class TablePlanner {
             int hashcost = hash.partitionCost() + hash.blocksAccessed();
             int mergecost = sortCost(current) + sortCost(rhs) + merge.blocksAccessed();
             Plan p;
-            if (hashcost < mergecost) {
+            boolean useHash = JoinMethods.isAllowed(JoinMethods.HASH)
+                  && (hashcost < mergecost || !JoinMethods.isAllowed(JoinMethods.MERGE));
+            if (useHash) {
                System.out.println("hashjoin on " + outerfield + "=" + fldname + " used"
                      + " (est. cost " + hashcost + " vs mergejoin " + mergecost + ")");
                p = hash;
@@ -174,7 +181,10 @@ class TablePlanner {
     */
    private Plan makeNestedLoopJoin(Plan current, Schema currsch, Predicate joinpred) {
       Plan rhs = addSelectPred(myplan);
-      System.out.println("nestedloopjoin used");
+      if (JoinMethods.isAllowed(JoinMethods.NESTED))
+         System.out.println("nestedloopjoin used");
+      else
+         System.out.println("nestedloopjoin used (no allowed join method applies)");
       return new NestedLoopJoinPlan(current, rhs, joinpred);
    }
    
