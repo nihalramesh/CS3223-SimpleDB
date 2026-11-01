@@ -3,12 +3,13 @@
 This walks through our changes **in change-log order**: Lab 1 → Lab 7, then the two bonuses.
 Each step builds on the previous one.
 
-Each step has the same parts:
+Read it top to bottom like a play script. Each step alternates between:
 
-- **Command:** paste into SimpleIJ, one line at a time
-- **Expected output:** what you should see
-- **Say:** what to say (put it in your own words)
-- **Code:** the file to have open if they ask to see code
+- **Say:** the words to say out loud (in quotes; put them in your own words)
+- **Command:** what to paste into SimpleIJ, one line at a time
+- **Expected output:** what appears on screen
+
+Every step ends with a **Background** box: the classes we changed and the files to open if someone asks to see the code. You don't need to read it out.
 
 Every query and output below was run against a fresh `studentdb` on `main`.
 
@@ -16,7 +17,7 @@ Every query and output below was run against a fresh `studentdb` on `main`.
 
 | Step | Topic | ~Time |
 |---|---|---|
-| 0 | Setup and the dataset | 1.5 min |
+| 0 | Intro and the dataset | 1.5 min |
 | 1 | Lab 1: Non-equality predicates | 1 min |
 | 2 | Lab 2: Hash and B+-tree indexes | 2 min |
 | 3 | Lab 3: ORDER BY | 1 min |
@@ -47,11 +48,14 @@ Every query and output below was run against a fresh `studentdb` on `main`.
 
 ---
 
-## Step 0: Our database (what's in it)
+## Step 0: Intro and our database
 
-**Say:** *"All demos use the standard `studentdb` from `CreateStudentDB`. It has 5 tables, the biggest with 9 rows, so it's under the 100-tuple limit. We added two indexes in Lab 2: a **hash** index on `student.majorid` and a **B+-tree** index on `enroll.studentid`."*
+**Say:**
+> "Hi, we're going to show the features we added to SimpleDB, in the order we built them: Labs 1 to 7, then our two bonus features.
+>
+> First, the data. We're using the standard `studentdb` from `CreateStudentDB`. It has five tables (student, dept, course, section and enroll), and the biggest has 9 rows, so we're under the 100-tuple limit. Let me show you what's in it."
 
-**Command:** Show the data (optional; you can show the tables below on a slide instead):
+**Command:**
 ```sql
 select sid, sname, majorid, gradyear from student
 select did, dname from dept
@@ -60,61 +64,80 @@ select sectid, courseid, prof, yearoffered from section
 select eid, studentid, sectionid, grade from enroll
 ```
 
-**Expected output:** The data:
-
+**Expected output** (one table after each command):
 ```
-STUDENT (9 rows, hash index on majorid)     DEPT (3 rows)
- sid sname majorid gradyear                  did dname
-   1 joe     10     2021                      10 compsci
-   2 amy     20     2020                      20 math
-   3 max     10     2022                      30 drama
+STUDENT (9 rows)                             DEPT (3 rows)
+ sid sname majorid gradyear                   did dname
+   1 joe     10     2021                       10 compsci
+   2 amy     20     2020                       20 math
+   3 max     10     2022                       30 drama
    4 sue     20     2022
-   5 bob     30     2020                    COURSE (6 rows)
-   6 kim     20     2020                     cid title       deptid
-   7 art     30     2021                      12 db systems    10
-   8 pat     20     2019                      22 compilers     10
-   9 lee     10     2021                      32 calculus      20
-                                              42 algebra       20
-SECTION (5 rows)                              52 acting        30
- sectid courseid prof     yearoffered         62 elocution     30
+   5 bob     30     2020                     COURSE (6 rows)
+   6 kim     20     2020                      cid title       deptid
+   7 art     30     2021                       12 db systems    10
+   8 pat     20     2019                       22 compilers     10
+   9 lee     10     2021                       32 calculus      20
+                                               42 algebra       20
+SECTION (5 rows)                               52 acting        30
+ sectid courseid prof     yearoffered          62 elocution     30
    13     12     turing     2018
-   23     12     turing     2019            ENROLL (6 rows, B+-tree index on studentid)
-   33     32     newton     2019             eid studentid sectionid grade
-   43     32     einstein   2017              14     1        13      A
-   53     62     brando     2018              24     1        43      C
-                                              34     2        43      B+
-                                              44     4        33      B
-                                              54     4        53      A
-                                              64     6        53      A
+   23     12     turing     2019             ENROLL (6 rows)
+   33     32     newton     2019              eid studentid sectionid grade
+   43     32     einstein   2017               14     1        13      A
+   53     62     brando     2018               24     1        43      C
+                                               34     2        43      B+
+                                               44     4        33      B
+                                               54     4        53      A
+                                               64     6        53      A
 ```
 
-**Say:** **How every query runs** (one sentence each):
-*"SimpleIJ sends the SQL to the Planner. The **Parser** turns it into a QueryData object, the **QueryVerifier** checks it against the catalog (our bonus), and the **HeuristicQueryPlanner** builds a tree of Plan objects. Opening the plan gives a tree of Scans, and we pull rows from the top. I'll use `explain` along the way to show the plan tree. I'll explain how it works in Lab 6B."*
+**Say:**
+> "Students have a major, which links to dept. Courses belong to a dept, sections are offerings of a course, and enroll links students to sections with a grade. There are also two indexes, a hash index on `student.majorid` and a B+-tree on `enroll.studentid`. I'll come back to those in Lab 2.
+>
+> Quickly, how every query runs: the parser turns the SQL into a QueryData object, our verifier checks it against the catalog, and the heuristic planner builds a tree of plans. Opening that tree gives a tree of scans, and we pull rows from the top. As we go I'll use `explain` to show that plan tree. We built that in Lab 6B."
 
 ---
 
 ## Step 1 — Lab 1: Non-equality predicates
 
-**What we changed:** the Lexer now reads `<  <=  >  >=  !=  <>` (`matchOpr` / `eatOpr`). `Term` stores the operator, and `isSatisfied()` uses `Constant.compareTo()`, so it works on ints and strings.
-**Code:** `parse/Lexer.java`, `query/Term.java`
+**Say:**
+> "Lab 1. Originally SimpleDB only supported `=` in a WHERE clause. We added `<`, `<=`, `>`, `>=`, `!=` and `<>`. For example, students graduating in 2021 or later:"
 
 **Command:**
 ```sql
 select sname, gradyear from student where gradyear >= 2021
 ```
-**Expected output:** joe 2021, max 2022, sue 2022, art 2021, lee 2021
+**Expected output:**
+```
+      sname gradyear
+--------------------
+        joe     2021
+        max     2022
+        sue     2022
+        art     2021
+        lee     2021
+```
 
-**Command:** Strings work too:
+**Say:**
+> "Five students. The comparison also works on strings. Here are the names alphabetically before 'c':"
+
+**Command:**
 ```sql
 select sname from student where sname < 'c'
 ```
 **Expected output:** amy, bob, art
+
+**Say:**
+> "And not-equal. Every enrollment that isn't an A:"
 
 **Command:**
 ```sql
 select eid, grade from enroll where grade <> 'A'
 ```
 **Expected output:** 24 C, 34 B+, 44 B
+
+**Say:**
+> "Here's the plan for the first query:"
 
 **Command:**
 ```sql
@@ -127,22 +150,18 @@ ProjectPlan(fields=[sname, gradyear])  [blocks=1, records=4]
     TablePlan(table=student)  [blocks=1, records=9]
 ```
 
-**How to read a plan** (bottom-up, each line feeds the one above it):
-- `TablePlan`: reads every row of `student` (9 rows, 1 block).
-- `SelectPlan`: the WHERE clause. It keeps only rows with `gradyear >= 2021`.
-- `ProjectPlan`: the SELECT list. It keeps only the `sname` and `gradyear` columns.
-- `[blocks, records]` are the planner's *estimates* (disk blocks read, rows output), not actual counts. For a non-equality condition it guesses that half the rows match (9 / 2 = 4). The real answer is 5 rows.
+**Say:**
+> "You read it from the bottom up. TablePlan reads all 9 students. SelectPlan is the WHERE clause, and you can see our `>=` in it. ProjectPlan keeps just the two columns. The numbers in brackets are the planner's estimates. For a non-equality condition it assumes half the rows match, so 9 becomes 4. The real answer was 5, but this only affects the estimate, never the result."
 
-**Say:** *"Originally SimpleDB only supported `=`. The lexer now reads all comparison operators, and each term compares the two sides with compareTo. For non-equality the planner estimates that half the rows match (9 → 4)."*
+> **Background:** the Lexer gained `matchOpr()`/`eatOpr()` to read multi-character operators. `Term` stores the operator, and `isSatisfied()` uses `Constant.compareTo()`, so ints and strings both work. The non-equality reduction factor is 2.
+> **Code:** `parse/Lexer.java`, `query/Term.java`
 
 ---
 
 ## Step 2 — Lab 2: Hash and B+-tree indexes
 
-**What we changed:** `create index ... using hash | btree` (hash is the default). The type is stored in a new `indextype` column of the `idxcat` catalog, and `IndexInfo` opens the right class. We also switched to the `HeuristicQueryPlanner` + `IndexUpdatePlanner`, which actually use indexes.
-**Code:** `metadata/IndexInfo.java`, `metadata/IndexMgr.java`, `parse/Parser.java`, `embedded/CreateStudentDB.java`
-
-**2a. Both index types are in the catalog**
+**Say:**
+> "Lab 2 is indexes. SimpleDB only had hash indexes. We added B+-trees, and you choose the type when you create the index with `using hash` or `using btree`. The type is saved in the index catalog:"
 
 **Command:**
 ```sql
@@ -150,34 +169,52 @@ select indexname, tablename, fieldname, indextype from idxcat
 ```
 **Expected output:**
 ```
-majoridindex    student  majorid    hash
-studentidindex  enroll   studentid  btree
+        indexname        tablename        fieldname        indextype
+--------------------------------------------------------------------
+     majoridindex          student          majorid             hash
+   studentidindex           enroll        studentid            btree
 ```
 
-**2b. Without vs with an index** (same query shape: `gradyear` has no index, `majorid` has one)
+**Say:**
+> "So majorid has a hash index and enroll.studentid has a B+-tree. Let me show the difference an index makes. First, a filter on gradyear, which has no index:"
 
 **Command:**
 ```sql
 explain select sname, majorid, gradyear from student where gradyear = 2020
 ```
-**Expected output:** Plain scan:
+**Expected output:**
 ```
 ProjectPlan(fields=[sname, majorid, gradyear])  [blocks=1, records=2]
   SelectPlan(predicate=gradyear=2020)  [blocks=1, records=2]
     TablePlan(table=student)  [blocks=1, records=9]
 ```
 
+**Say:**
+> "That's a plain scan: read every student and test each one. Now the same query on majorid, which has the hash index:"
+
 **Command:**
 ```sql
 select sname, majorid, gradyear from student where majorid = 20
 ```
-**Expected output:** `index on majorid used` → amy, sue, kim, pat
+**Expected output:**
+```
+index on majorid used
+      sname majorid gradyear
+----------------------------
+        amy      20     2020
+        sue      20     2022
+        kim      20     2020
+        pat      20     2019
+```
+
+**Say:**
+> "The planner prints 'index on majorid used'. In the plan:"
 
 **Command:**
 ```sql
 explain select sname, majorid, gradyear from student where majorid = 20
 ```
-**Expected output:** There's now an `IndexSelectPlan`:
+**Expected output:**
 ```
 ProjectPlan(fields=[sname, majorid, gradyear])  [blocks=2, records=2]
   SelectPlan(predicate=majorid=20)  [blocks=2, records=2]
@@ -185,15 +222,26 @@ ProjectPlan(fields=[sname, majorid, gradyear])  [blocks=2, records=2]
       TablePlan(table=student)  [blocks=1, records=9]
 ```
 
-**2c. B+-tree index select** (do **not** run `explain` on this one)
+**Say:**
+> "There's now an IndexSelectPlan. It hashes 20 to one of 100 buckets, gets the matching record IDs, and jumps straight to those rows instead of scanning the table.
+>
+> The B+-tree works the same way for lookups. Here are student 4's enrollments:"
 
-**Command:**
+**Command** (do **not** run `explain` on this one):
 ```sql
 select eid, sectionid, grade from enroll where studentid = 4
 ```
-**Expected output:** `index on studentid used` → 54 53 A, 44 33 B
+**Expected output:**
+```
+index on studentid used
+    eid sectionid grade
+-----------------------
+     54        53     A
+     44        33     B
+```
 
-**2d. Index join**
+**Say:**
+> "That lookup walks from the root of the B+-tree down to the leaf holding studentid 4. Indexes are also used in joins. Here are the grades of students graduating in 2022:"
 
 **Command:**
 ```sql
@@ -215,40 +263,64 @@ ProjectPlan(fields=[sname, grade])  [blocks=7, records=1]
       TablePlan(table=enroll)  [blocks=1, records=6]
 ```
 
-**Say:** *"Hash index: 100 buckets, and a lookup reads only bucket hash(key) mod 100. B+-tree: a lookup walks from the root down to the leaf holding the key. When a query has `indexedfield = constant`, the planner uses an IndexSelectPlan. In a join, for each outer row it looks up matches through the inner table's index instead of scanning it. That's the IndexJoinPlan."*
+**Say:**
+> "That's an IndexJoinPlan. The planner first finds the 2022 students, then for each one it looks up their enrollments through the B+-tree instead of scanning the whole enroll table."
+
+> **Background:** the parser accepts `using hash | btree` (hash is the default) and stores the type in `CreateIndexData`. `idxcat` gained an `indextype` column, and `IndexInfo` opens the matching index class and uses its cost formula. We also switched SimpleDB to the `HeuristicQueryPlanner` + `IndexUpdatePlanner`, which use indexes.
+> **Code:** `metadata/IndexInfo.java`, `metadata/IndexMgr.java`, `parse/Parser.java`, `embedded/CreateStudentDB.java`
 
 ---
 
-## Step 3 — Lab 3: ORDER BY (multiple fields, ASC/DESC)
+## Step 3 — Lab 3: ORDER BY
 
-**What we changed:** the parser reads `order by f1 [asc|desc], f2 [asc|desc], ...`. `SortPlan` takes a list of directions, and `RecordComparator` flips the sign of the comparison for DESC fields.
-**Code:** `parse/Parser.java` (`orderList`), `materialize/RecordComparator.java`, `materialize/SortPlan.java`
+**Say:**
+> "Lab 3 is ORDER BY, with any number of fields, each ascending or descending. Here are the students sorted by major ascending, and within each major, newest graduation year first:"
 
 **Command:**
 ```sql
 select sname, majorid, gradyear from student order by majorid, gradyear desc
 ```
-**Expected output:** majorid ascending, and within each majorid, gradyear descending:
+**Expected output:**
 ```
-max 10 2022 | lee 10 2021 | joe 10 2021 | sue 20 2022 | kim 20 2020 | amy 20 2020 | pat 20 2019 | art 30 2021 | bob 30 2020
+      sname majorid gradyear
+----------------------------
+        max      10     2022
+        lee      10     2021
+        joe      10     2021
+        sue      20     2022
+        kim      20     2020
+        amy      20     2020
+        pat      20     2019
+        art      30     2021
+        bob      30     2020
 ```
+
+**Say:**
+> "Majors go 10, 20, 30, and inside each one the years go down. In the plan:"
 
 **Command:**
 ```sql
 explain select sname, majorid, gradyear from student order by majorid, gradyear desc
 ```
-**Expected output:** `SortPlan(fields=[majorid, gradyear], directions=[true, false])` (true = asc, false = desc)
+**Expected output:**
+```
+ProjectPlan(fields=[sname, majorid, gradyear])  [blocks=1, records=9]
+  SortPlan(fields=[majorid, gradyear], directions=[true, false])  [blocks=1, records=9]
+    TablePlan(table=student)  [blocks=1, records=9]
+```
 
-**Say:** *"Each sort field has its own direction. The comparator goes field by field and flips the result for descending ones."*
+**Say:**
+> "The SortPlan has a list of fields and a matching list of directions: true is ascending, false is descending. The comparator goes field by field and just flips the result for descending fields."
+
+> **Background:** `order`, `by`, `asc` and `desc` are keywords. `Parser.orderList()` collects the fields and directions into `QueryData`. `SortPlan` takes the directions, and `RecordComparator.compare()` flips the sign for DESC.
+> **Code:** `parse/Parser.java`, `materialize/SortPlan.java`, `materialize/RecordComparator.java`
 
 ---
 
-## Step 4 — Lab 4: Join algorithms (sort-merge and nested-loop), 3-way joins
+## Step 4 — Lab 4: Join algorithms on 3-way joins
 
-**What we changed:** `TablePlanner.makeJoinPlan` now tries, in order: **index join** → **sort-merge join** → **nested-loop join** (new `NestedLoopJoinPlan`/`Scan`, which work with any operator). We also fixed RecordComparator, which wasn't sorting ascending fields, and added the ORDER BY step to the HeuristicQueryPlanner.
-**Code:** `opt/TablePlanner.java`, `materialize/MergeJoinScan.java`, `query/NestedLoopJoinScan.java`
-
-**4a. 3-way equality join + ORDER BY → sort-merge join**
+**Say:**
+> "Lab 4 is join algorithms. Originally, a join without an index was a cross product followed by a filter. Now the planner tries an index join first, then a sort-merge join, then a nested-loop join. Let's join three tables, student, enroll and section, to get each student's professor and grade, sorted by name, with grades descending within a name:"
 
 **Command:**
 ```sql
@@ -258,8 +330,18 @@ select sname, prof, grade from student, enroll, section where sid = studentid an
 ```
 mergejoin on sectid=sectionid used (est. cost 6 vs hashjoin 6)
 mergejoin on studentid=sid used (est. cost 7 vs hashjoin 7)
-amy einstein B+ | joe einstein C | joe turing A | kim brando A | sue newton B | sue brando A
+      sname     prof grade
+--------------------------
+        amy einstein    B+
+        joe einstein     C
+        joe   turing     A
+        kim   brando     A
+        sue   newton     B
+        sue   brando     A
 ```
+
+**Say:**
+> "The planner tells us it used merge join for both joins. Here's the plan:"
 
 **Command:**
 ```sql
@@ -267,36 +349,53 @@ explain select sname, prof, grade from student, enroll, section where sid = stud
 ```
 **Expected output:**
 ```
-ProjectPlan(fields=[sname, prof, grade])
-  SortPlan(fields=[sname, grade], directions=[true, false])
-    SelectPlan(predicate=sid=studentid)
-      MergeJoinPlan(fields=studentid=sid)
-        SelectPlan(predicate=sectionid=sectid)
-          MergeJoinPlan(fields=sectid=sectionid)
-            TablePlan(table=section)
-            TablePlan(table=enroll)
-        TablePlan(table=student)
+ProjectPlan(fields=[sname, prof, grade])  [blocks=1, records=1]
+  SortPlan(fields=[sname, grade], directions=[true, false])  [blocks=1, records=1]
+    SelectPlan(predicate=sid=studentid)  [blocks=2, records=1]
+      MergeJoinPlan(fields=studentid=sid)  [blocks=2, records=6]
+        SelectPlan(predicate=sectionid=sectid)  [blocks=2, records=3]
+          MergeJoinPlan(fields=sectid=sectionid)  [blocks=2, records=10]
+            TablePlan(table=section)  [blocks=1, records=5]
+            TablePlan(table=enroll)  [blocks=1, records=6]
+        TablePlan(table=student)  [blocks=1, records=9]
 ```
 
-**Say:** *"The planner starts with the smallest table, section, then adds enroll, then student. There's no index on these join fields, so it uses a sort-merge join: sort both sides on the join key and walk them together like merging two sorted lists."*
-
-**4b. Equality joins + non-equality filters (selection pushdown)**
+**Say:**
+> "Reading bottom up: the planner starts with the smallest table, section, joins in enroll, then student. There's no index on these join fields, so it uses sort-merge join. It sorts both sides on the join key and walks them together, like merging two sorted lists. The ORDER BY sort is on top.
+>
+> We can also mix in non-equality filters. Here are the same joins, only for sections before 2019:"
 
 **Command:**
 ```sql
 select sname, prof, yearoffered, grade from student, enroll, section where sid = studentid and sectionid = sectid and yearoffered < 2019 order by yearoffered desc, sname
 ```
-**Expected output:** joe turing 2018 A, kim brando 2018 A, sue brando 2018 A, amy einstein 2017 B+, joe einstein 2017 C
+**Expected output:**
+```
+      sname     prof yearoffered grade
+--------------------------------------
+        joe   turing        2018     A
+        kim   brando        2018     A
+        sue   brando        2018     A
+        amy einstein        2017    B+
+        joe einstein        2017     C
+```
 
 **Command:**
 ```sql
 explain select sname, prof, yearoffered, grade from student, enroll, section where sid = studentid and sectionid = sectid and yearoffered < 2019 order by yearoffered desc, sname
 ```
-**Expected output:** Look at the bottom of the tree: `SelectPlan(predicate=yearoffered<2019)` sits directly on `TablePlan(table=section)`.
+**Expected output** (bottom of the tree):
+```
+          MergeJoinPlan(fields=sectid=sectionid)
+            SelectPlan(predicate=yearoffered<2019)  [blocks=1, records=2]
+              TablePlan(table=section)  [blocks=1, records=5]
+            TablePlan(table=enroll)  [blocks=1, records=6]
+```
 
-**Say:** *"A filter that mentions only one table is applied to that table before the join, so fewer rows go into the join."*
-
-**4c. Non-equality *join* → nested-loop join** (three techniques in one plan)
+**Say:**
+> "Look at the bottom: the `yearoffered < 2019` filter sits right on the section table, *below* the join. A filter that only mentions one table is applied before the join, so fewer rows go into it.
+>
+> Finally, what if the join condition itself isn't equality? Here we match drama students (major 30) with every section offered before they graduated:"
 
 **Command:**
 ```sql
@@ -307,47 +406,69 @@ select sname, gradyear, title, yearoffered from student, section, course where c
 index on majorid used
 nestedloopjoin used
 mergejoin on courseid=cid used (est. cost 9 vs hashjoin 9)
+      sname gradyear                title yearoffered
+-----------------------------------------------------
+        art     2021             calculus        2019
+        art     2021           db systems        2019
+        art     2021            elocution        2018
+        art     2021           db systems        2018
+        art     2021             calculus        2017
+        bob     2020             calculus        2019
+        bob     2020           db systems        2019
+        bob     2020            elocution        2018
+        bob     2020           db systems        2018
+        bob     2020             calculus        2017
 ```
-then 10 rows: art 2021 × 5 sections, then bob 2020 × 5 sections, each with yearoffered 2019, 2019, 2018, 2018, 2017.
 
-**Say:** *"Here the join itself is an inequality: graduation year > year offered. Hash, merge and index joins all need equality, so the planner falls back to nested-loop join, which rescans the inner side for each outer row and tests any predicate. One query uses three techniques: the hash index for majorid = 30, a nested-loop join for the inequality, and a merge join for courseid = cid."* (Show the plan in Step 8.)
+**Say:**
+> "`gradyear > yearoffered` is a join between student and section, but it's not an equality, and index, hash and merge joins all need equality. So the planner falls back to a nested-loop join. For each student it rescans the sections and tests the condition, so it works with any operator. This one query uses three techniques: the hash index for major 30, a nested-loop join, and a merge join for courseid = cid. I'll show its plan when we get to EXPLAIN."
+
+> **Background:** `TablePlanner.makeJoinPlan()` tries index join → equality join (merge, plus hash from Lab 5A) → nested loop. `NestedLoopJoinPlan`/`NestedLoopJoinScan` are new and test the predicate inline. We also fixed `RecordComparator` (ascending fields weren't sorted), fixed `Constant.equals()` throwing on null (it crashed `MergeJoinScan`), and added the ORDER BY step to `HeuristicQueryPlanner`.
+> **Code:** `opt/TablePlanner.java`, `materialize/MergeJoinScan.java`, `query/NestedLoopJoinScan.java`
 
 ---
 
 ## Step 5 — Lab 5A: Partition-based hash join
 
-**What we changed:** new `HashJoinPlan` / `HashJoinScan`. Both inputs are split into (buffers − 1) partitions by hash of the join value. Then, for each partition, the smaller side is loaded into an in-memory HashMap and the other side probes it. `makeEquiJoin()` estimates the cost of **both** hash and merge join and picks the cheaper one.
-**Code:** `materialize/HashJoinPlan.java`, `materialize/HashJoinScan.java`, `opt/TablePlanner.java` (`makeEquiJoin`)
+**Say** (no command; point at the messages from Step 4 still on screen):
+> "Lab 5A added hash join. You might have noticed this line earlier: 'mergejoin used, estimated cost 6 versus hashjoin 6'. For every equality join without an index, the planner builds both a hash join and a merge join, estimates both costs, and picks the cheaper one.
+>
+> Hash join splits both inputs into partitions by hashing the join value, so matching rows always land in the same partition. Then, partition by partition, it loads the smaller side into an in-memory hash table and streams the other side through it.
+>
+> On these one-block tables the costs tie, and hash join has to be strictly cheaper to win, so we see merge join. On the large dataset from Lab 7, the planner picks hash join by itself. I'll show those numbers in a minute."
 
-**Command:** Nothing new to type. Point back at the message from 4a:
-```
-mergejoin on sectid=sectionid used (est. cost 6 vs hashjoin 6)
-```
-
-**Say:** *"For every equality join without an index, the planner costs both hash join and merge join. On our 1-block tables they tie, and hash join has to be strictly cheaper to win, so merge is used. On the big Lab 7 database the planner picks hash join on its own. I'll show those numbers in Step 9."*
+> **Background:** `HashJoinPlan.open()` partitions both inputs into (available buffers − 1) temp tables and uses the smaller one as the build side. `partitionCost()` is kept separate from `blocksAccessed()` so the costs can be compared. `TablePlanner.makeEquiJoin()` picks hash or merge, and `sortCost()` estimates the merge join's sort. We also fixed `SortScan.savePosition()/restorePosition()`, which skipped rows when merge join went back over duplicate keys.
+> **Code:** `materialize/HashJoinPlan.java`, `materialize/HashJoinScan.java`, `opt/TablePlanner.java`
 
 ---
 
 ## Step 6 — Lab 5B: Aggregates, with and without GROUP BY
 
-**What we changed:** `count, sum, avg, min, max` in SELECT and ORDER BY (output names like `countofsid`), plus an optional `group by`. `GroupByPlan` sorts on the group fields, then `GroupByScan` produces one row per group. With no GROUP BY, the whole table is one group and there's no sort. MIN/MAX also work on strings. `checkGrouping()` rejects non-aggregated fields that aren't grouped.
-**Code:** `parse/Parser.java`, `materialize/GroupByPlan.java`, `materialize/GroupByScan.java`, `materialize/AvgFn.java`
-
-**Without GROUP BY**
+**Say:**
+> "Lab 5B is aggregates: count, sum, avg, min and max. Without a GROUP BY, the whole table is one group:"
 
 **Command:**
 ```sql
 select count(sid), min(gradyear), max(gradyear), avg(gradyear) from student
 ```
-**Expected output:** `9  2019  2022  2020.6667`
+**Expected output:**
+```
+ countofsid minofgradyear maxofgradyear avgofgradyear
+-----------------------------------------------------
+          9          2019          2022     2020.6667
+```
+
+**Say:**
+> "Nine students, graduating between 2019 and 2022, average 2020.67. Each column gets a name like `countofsid`, which we'll use in a moment. MIN and MAX also work on strings:"
 
 **Command:**
 ```sql
 select count(eid), min(grade), max(grade) from enroll
 ```
-**Expected output:** `6  A  C` (MIN/MAX on a varchar)
+**Expected output:** `6  A  C`
 
-**With GROUP BY**
+**Say:**
+> "Now with GROUP BY, the same statistics per major:"
 
 **Command:**
 ```sql
@@ -355,18 +476,33 @@ select majorid, count(sid), min(gradyear), max(gradyear), avg(gradyear) from stu
 ```
 **Expected output:**
 ```
-10  3  2021  2022  2021.3333
-20  4  2019  2022  2020.25
-30  2  2020  2021  2020.5
+ majorid countofsid minofgradyear maxofgradyear avgofgradyear
+-------------------------------------------------------------
+      10          3          2021          2022     2021.3333
+      20          4          2019          2022       2020.25
+      30          2          2020          2021        2020.5
 ```
 
-**GROUP BY over a join, ordered by the aggregate**
+**Say:**
+> "One row per major. Internally, the rows are sorted on majorid so each group's rows sit next to each other. The group-by scan then walks one group at a time, updating every aggregate, and outputs a row when the group changes.
+>
+> It also works on top of a join, and you can sort by the aggregate using its output name. Here are the departments ranked by number of students:"
 
 **Command:**
 ```sql
 select dname, count(sid) from student, dept where majorid = did group by dname order by countofsid desc
 ```
-**Expected output:** math 4, compsci 3, drama 2
+**Expected output:**
+```
+    dname countofsid
+--------------------
+     math          4
+  compsci          3
+    drama          2
+```
+
+**Say:**
+> "And here's how a plan like that is built, for professors ranked by number of enrollments:"
 
 **Command:**
 ```sql
@@ -383,26 +519,40 @@ ProjectPlan(fields=[prof, countofeid])
           TablePlan(table=enroll)
 ```
 
-**Say:** *"Without GROUP BY the whole table is one group, so we get one row. With GROUP BY, rows are sorted on the group field, and GroupByScan walks one group at a time, updating every aggregate as it goes. It works on top of joins, and you can order by the aggregate's name, like countofsid."*
+**Say:**
+> "Join first, then group by professor, then sort by the count descending, with ties broken by name."
+
+> **Background:** new keywords `group`, `sum`, `count`, `avg`, `min` and `max`. The parser stores aggregates by output name, and `checkGrouping()` rejects plain fields that are neither grouped nor aggregated. `GroupByPlan` sorts on the group fields; with no group fields it skips the sort and treats the input as one group. Each aggregate sets its own output type, so MIN/MAX keep the field's type.
+> **Code:** `parse/Parser.java`, `materialize/GroupByPlan.java`, `materialize/GroupByScan.java`, `materialize/AvgFn.java`
 
 ---
 
 ## Step 7 — Lab 6: DISTINCT
 
-**What we changed:** `select distinct ...` wraps the final projection in a `DistinctPlan`. `DistinctScan` keeps a HashSet of rows already returned and skips repeats, so it doesn't sort and keeps the input order.
-**Code:** `plan/DistinctPlan.java`, `query/DistinctScan.java`
+**Say:**
+> "Lab 6 is DISTINCT. Joins often produce duplicates. Here's each student's department name:"
 
-**Command:** First, the join creates duplicates:
+**Command:**
 ```sql
 select dname from dept, student where did = majorid
 ```
 **Expected output:** 9 rows: compsci ×3, math ×4, drama ×2
 
+**Say:**
+> "One row per student, so the names repeat. Adding DISTINCT:"
+
 **Command:**
 ```sql
 select distinct dname from dept, student where did = majorid
 ```
-**Expected output:** compsci, math, drama
+**Expected output:**
+```
+    dname
+---------
+  compsci
+     math
+    drama
+```
 
 **Command:**
 ```sql
@@ -418,16 +568,22 @@ DistinctPlan  [blocks=7, records=1]
         TablePlan(table=student)
 ```
 
-**Say:** *"The join gives one row per student, so department names repeat. DISTINCT sits **above** the projection, because duplicates only appear once the other columns are dropped. It uses a hash set: one pass, no temp tables, and the original order is kept, which is why the output isn't alphabetical."*
+**Say:**
+> "DistinctPlan sits on top of the projection, because duplicates only appear once the other columns are dropped. It keeps a hash set of rows it has already returned and skips repeats. So it's one pass with no sorting, which is why the output stays in its original order (compsci, math, drama) rather than alphabetical."
+
+> **Background:** `distinct` is a keyword, and `QueryData.isDistinct()` stores it. All three planners wrap the final projection in a `DistinctPlan`, and `DistinctScan` uses a HashSet. The estimated output is min(input rows, product of each field's distinct values).
+> **Code:** `plan/DistinctPlan.java`, `query/DistinctScan.java`
 
 ---
 
-## Step 8 — Lab 6B: EXPLAIN (displaying the query plan)
+## Step 8 — Lab 6B: EXPLAIN
 
-**What we changed:** every Plan has `children()` and `description()`. `Planner.explainQueryPlan()` builds the plan **without running it**, and `PlanPrinter` prints the tree recursively with each node's estimated `[blocks, records]`. SimpleIJ treats any line starting with `explain` this way, over both embedded and network JDBC.
-**Code:** `plan/PlanPrinter.java`, `plan/Planner.java`, `SimpleDBClients/src/SimpleIJ.java`
+**Say:**
+> "Lab 6B is the EXPLAIN command we've been using all along. When SimpleIJ sees a line starting with `explain`, the planner builds exactly the plan the query would use, but doesn't run it. A plan printer walks the tree, indents each level, and prints each operator with its estimated blocks and rows. It works over both the embedded and the network connection.
+>
+> Here's the plan for that drama-student query from Lab 4:"
 
-**Command:** The showcase plan from Step 4c:
+**Command:**
 ```sql
 explain select sname, gradyear, title, yearoffered from student, section, course where courseid = cid and gradyear > yearoffered and majorid = 30 order by sname, yearoffered desc
 ```
@@ -444,74 +600,120 @@ ProjectPlan(fields=[sname, gradyear, title, yearoffered])
           TablePlan(table=section)
         TablePlan(table=course)
 ```
+(The `<-` labels are ours, not part of the output.)
 
-**Say:** *"We've been using this all along. EXPLAIN builds the same plan the query would use, doesn't execute it, and prints the tree with the planner's cost estimates. The sorts used internally by merge join and GROUP BY are hidden, so the only SortPlan you see is the ORDER BY."*
+**Say:**
+> "From the bottom: the hash index finds the drama students, a nested-loop join handles the inequality with section, a merge join adds course, and the sort on top handles the ORDER BY. The sorts that merge join and GROUP BY use internally are hidden, so the only SortPlan you see is the ORDER BY."
+
+> **Background:** `Plan` gained default `children()` and `description()` methods, implemented by every plan class. `PlanPrinter` formats the tree with `[blocks=…, records=…]` from `blocksAccessed()` and `recordsOutput()`. `Planner.explainQueryPlan()` builds without executing. `PlanStatement.explain()` is implemented for embedded and network JDBC.
+> **Code:** `plan/PlanPrinter.java`, `plan/Planner.java`, `SimpleDBClients/src/SimpleIJ.java`
 
 ---
 
 ## Step 9 — Lab 7: Join experiments (talk only, don't run live)
 
-**What we changed:**
-- `JoinMethods`: restricts which join methods the planner may use, so the same query can be forced into different plans.
-- `CreateExperimentDB`: builds `expdb` (20 depts, 2000 students, 100 courses, 400 sections, 8000 enrollments) from a fixed random seed, with B-tree indexes.
-- `JoinExperiment`: runs each query once per join method, 3 times each.
-- Bugs fixed along the way: B-tree buffer leaks (`BTPage`, `BTreeIndex`), and `FileMgr` running out of file handles (it now keeps at most 500 files open).
+**Say:**
+> "In Lab 7 we compared the join algorithms on real timings. Our tables are one block each, which is too small to time, so we wrote a generator for a bigger database: 2,000 students, 8,000 enrollments, 400 sections and 100 courses, from a fixed random seed so it's reproducible. We also added a switch that restricts which join methods the planner may use, so we can force the same query through each algorithm. Each query ran three times. Here are the averages:"
 
-**Code:** `opt/JoinMethods.java`, `experiment/JoinExperiment.java`
-
-Results (average ms, from our earlier run):
+**Show this table** (on a slide or this doc):
 
 | Query | index | hash | merge | nested loop |
 |---|---|---|---|---|
-| 2-table (student ⋈ enroll) | **36** | 384 | 5793 | 6351 |
-| 4-table | 1610\* | **1567** | 18240 | 8493 |
+| 2-table (student ⋈ enroll) | **36 ms** | 384 ms | 5793 ms | 6351 ms |
+| 4-table (student ⋈ enroll ⋈ section ⋈ course) | 1610 ms\* | **1567 ms** | 18240 ms | 8493 ms |
 
 \* With only index join allowed, 2 of the 3 joins fall back to nested loop, because there's no index on their inner side.
 
-**Say:** *"`expdb` is over the 100-tuple limit, so we're not running it live. Index join wins when an index fits the join. Hash join is the best general-purpose equality join. Merge join was slowest here, because writing and merging the sorted temp tables dominates its cost."*
+**Say:**
+> "Index join wins when there's an index on the join field. Hash join is the best general-purpose equality join. Merge join was the slowest here, because writing and merging all the sorted temp tables dominates its cost. This database is over the 100-tuple limit, so we're not running it live.
+>
+> Running these experiments also exposed two bugs we fixed: B-tree page splits never released their buffers, and the file manager kept every temp file open until it ran out of file handles."
+
+> **Background:** `opt/JoinMethods` holds the allowed methods (all by default). `TablePlanner` only tries allowed ones and falls back to nested loop with a message. `experiment/CreateExperimentDB` builds `expdb` with B-tree indexes on sid, studentid, sectid and cid. `experiment/JoinExperiment` runs the two queries once per method. Fixes: `BTPage.appendNew()` and `BTreeIndex` unpin their blocks, and `FileMgr` keeps at most 500 files open (LRU).
+> **Code:** `opt/JoinMethods.java`, `experiment/JoinExperiment.java`, `file/FileMgr.java`
 
 ---
 
 ## Step 10 — Bonus 1: Query error checking
 
-**Before:** `verifyQuery()`/`verifyUpdate()` were empty. An unknown table crashed with a NullPointerException, a WHERE on a misspelled field was silently ignored (so you got every row), and an over-long string overwrote the next record.
-**Now:** `QueryVerifier` checks every statement against the catalog **before planning**. On failure it throws a `SemanticException` naming the problem, and the transaction is rolled back.
-**Code:** `plan/QueryVerifier.java`, `plan/Planner.java`
+**Say:**
+> "Now our two bonuses. The first is error checking. In the original SimpleDB, the verify methods were empty, so bad statements went straight through. A misspelled table crashed with a NullPointerException, a condition on a misspelled field was silently ignored, and a string that was too long overwrote the next record on disk. We added a verifier that checks every statement against the catalog before it's planned. For example, a typo in the table name:"
 
-**Command:** Paste each one. They should all be rejected:
+**Command:**
+```sql
+select sname from studnt
+```
+**Expected output:**
+```
+transaction 31 rolled back
+SQL Exception: simpledb.plan.SemanticException: table studnt does not exist
+```
+(The transaction number will vary.)
+
+**Say:**
+> "A clear message instead of a crash. This next one is the important one. `gpa` doesn't exist. Before, this returned *every* student without any error:"
+
+**Command:**
+```sql
+select sname from student where gpa = 3
+```
+**Expected output:** `field gpa does not exist in student`
+
+**Say:**
+> "Types are checked too, both in comparisons and in inserts:"
+
+**Command:**
+```sql
+select sname from student where sname = 10
+```
+**Expected output:** `cannot compare sname (varchar) with 10 (int)`
+
+**Command:**
+```sql
+insert into dept(did, dname) values (40, 'engineering')
+```
+**Expected output:** `value 'engineering' is too long for field dname (varchar(8))`
+
+**Say:**
+> "That one used to silently corrupt the next record. And the GROUP BY rule from Lab 5B:"
+
+**Command:**
+```sql
+select sname, count(sid) from student
+```
+**Expected output:** `field sname must appear in the group by clause or be aggregated`
+
+**Say:**
+> "Every failure rolls back the transaction, so nothing is half-done. The dept table still has just its three rows:"
+
+**Command:**
+```sql
+select count(did) from dept
+```
+**Expected output:** `3`
+
+**Extra examples, if you have time or are asked:**
 
 | Command | Expected output |
 |---|---|
-| `select sname from studnt` | table studnt does not exist |
-| `select sname from student where gpa = 3` | field gpa does not exist in student |
-| `select sname from student where sname = 10` | cannot compare sname (varchar) with 10 (int) |
 | `select sname from student, student` | table student appears more than once in the from clause |
-| `insert into dept(did, dname) values (40, 'engineering')` | value 'engineering' is too long for field dname (varchar(8)) |
 | `insert into dept(did, dname) values ('x', 'art')` | cannot store 'x' (varchar) in field did (int) |
 | `insert into dept(did) values (50, 'art')` | insert into dept lists 1 fields but 2 values |
 | `update student set sname = gradyear where sid = 2` | cannot set sname (varchar) to gradyear (int) |
 | `select sum(sname) from student` | cannot sum non-numeric field sname |
 | `create index majoridindex on student(majorid)` | field majorid of student is already indexed |
-| `select sname, count(sid) from student` | field sname must appear in the group by clause or be aggregated *(from the parser, Lab 5B)* |
 
-**Command:** Prove nothing was half-done:
-```sql
-select count(did) from dept
-```
-**Expected output:** `3` (the bad inserts didn't go in)
-
-*Short on time? Do `studnt`, `gpa = 3`, `'engineering'` and `count(sid)` only.*
-
-**Say:** *"Each error names exactly what's wrong, and the transaction is rolled back. The `gpa = 3` case is the important one: before, it silently returned every student."*
+> **Background:** `QueryVerifier` runs inside `Planner` after parsing and before planning, for every query and update. It checks tables, fields (they must exist in exactly one FROM table), comparison types, SUM/AVG on numeric fields only, insert/update value types and varchar lengths, and CREATE name lengths, duplicate fields and duplicate indexes. A failure throws `SemanticException`.
+> **Code:** `plan/QueryVerifier.java`, `plan/Planner.java`, `plan/SemanticException.java`
 
 ---
 
 ## Step 11 — Bonus 2: DOUBLE data type
 
-**What we changed:** `double` is a new column type, added through every layer: 8 bytes in a record (`Layout`, `Page.get/setDouble`), the lexer reads `39.99` as one token, a `SetDoubleRecord` log record for rollback/recovery, comparisons by value (`8 = 8.0`, and they hash the same, so indexes and hash join match), `SUM` of a double is a double, `AVG` always returns a double, `getDouble()` over JDBC, and SimpleIJ prints at most 4 decimal places.
-**Code:** `record/Layout.java`, `file/Page.java`, `parse/Lexer.java`, `query/Constant.java`, `tx/recovery/SetDoubleRecord.java`
+**Say:**
+> "Our second bonus is a new data type, DOUBLE, alongside int and varchar. Let's make a product table with a double price:"
 
-**Command:**
+**Command** (one line at a time):
 ```sql
 create table product(pid int, pname varchar(10), price double)
 insert into product(pid, pname, price) values (1, 'pen', 1.25)
@@ -519,46 +721,78 @@ insert into product(pid, pname, price) values (2, 'notebook', 4.5)
 insert into product(pid, pname, price) values (3, 'backpack', 39.99)
 insert into product(pid, pname, price) values (4, 'mug', 8)
 ```
-**Expected output:** Each one prints `1 records processed`. Note that the mug's price is the **int** 8.
+**Expected output:** `0 records processed` for the create, then `1 records processed` for each insert.
 
-**Command:** Comparison + sort:
+**Say:**
+> "Notice the mug's price is the integer 8. An int is allowed in a double column. Filtering and sorting on decimals:"
+
+**Command:**
 ```sql
 select pname, price from product where price > 4.25 order by price desc
 ```
-**Expected output:** backpack 39.99, mug 8.0, notebook 4.5
+**Expected output:**
+```
+      pname      price
+----------------------
+   backpack      39.99
+        mug        8.0
+   notebook        4.5
+```
 
-**Command:** Int matches double by value:
+**Say:**
+> "The mug was stored as 8.0. Ints and doubles are compared by value, so searching for the integer 8 finds it:"
+
+**Command:**
 ```sql
 select pname, price from product where price = 8
 ```
 **Expected output:** mug 8.0
 
-**Command:** Aggregates:
+**Say:**
+> "Aggregates. SUM of a double column is a double, and AVG now always returns a double:"
+
+**Command:**
 ```sql
 select sum(price), avg(price), min(price), max(price) from product
 ```
-**Expected output:** `53.74  13.435  1.25  39.99`
+**Expected output:**
+```
+ sumofprice avgofprice minofprice maxofprice
+--------------------------------------------
+      53.74     13.435       1.25      39.99
+```
 
-**Command:** Update:
+**Say:**
+> "Updates work too. Updates are logged, so a rollback restores the old double value:"
+
+**Command:**
 ```sql
 update product set price = 9.75 where pid = 4
 select pname, price from product where price = 9.75
 ```
-**Expected output:** mug 9.75
+**Expected output:** `1 records processed`, then mug 9.75
 
-**Command:** Type rules (ties back to Bonus 1):
+**Say:**
+> "And the type rule from the verifier: you can't put a double into an int column, because the fraction would be lost:"
+
+**Command:**
 ```sql
 insert into student(sid, sname, majorid, gradyear) values (99, 'zed', 10, 2020.5)
 ```
-**Expected output:** `cannot store 2020.5 (double) in field gradyear (int)`: an int fits in a double column, but not the other way round, because the fraction would be lost.
+**Expected output:** `cannot store 2020.5 (double) in field gradyear (int)`
 
-**Say:** *"Doubles work everywhere ints do: comparisons, sorting, aggregates, indexes and joins. Ints and doubles compare by value, and 8 and 8.0 hash the same, so they also match in hash indexes and hash joins."*
+**Say:**
+> "So doubles work everywhere ints do: storage, comparisons, sorting, aggregates, indexes and joins. And because 8 and 8.0 hash the same, they also match in hash indexes and hash joins."
+
+> **Background:** each double takes 8 bytes (`Layout`, `Page.getDouble/setDouble`). The lexer reads `39.99` as one token. `Constant` holds doubles, compares int and double by value, and gives 8 and 8.0 the same hash. `SetDoubleRecord` logs updates for rollback and recovery. `SumFn` and `AvgFn` return doubles. JDBC `getDouble()` works in both drivers, and SimpleIJ rounds to 4 decimal places.
+> **Code:** `record/Layout.java`, `file/Page.java`, `parse/Lexer.java`, `query/Constant.java`, `tx/recovery/SetDoubleRecord.java`
 
 ---
 
 ## Wrap-up
 
-**Say:** *"To summarise: non-equality predicates, hash and B+-tree indexes used for selections and joins, multi-field ORDER BY, three new join algorithms chosen by cost, aggregates with and without GROUP BY, DISTINCT, EXPLAIN, the join experiments, and two bonuses: error checking and a DOUBLE type. Happy to take questions."*
+**Say:**
+> "To summarise: we added non-equality predicates; hash and B+-tree indexes, used for both selections and joins; multi-field ORDER BY; three join algorithms (sort-merge, nested-loop and hash), chosen by estimated cost; aggregates with and without GROUP BY; DISTINCT; and EXPLAIN. We ran timed join experiments on a larger database, and for bonuses we added semantic error checking and a DOUBLE type. Happy to take questions."
 
 ---
 
