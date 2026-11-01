@@ -13,19 +13,19 @@ Every step ends with a **Background** box: the classes we changed and the files 
 
 Every query and output below was run against a fresh `studentdb` on `main`.
 
-**Time plan (about 16 min, then questions)**
+**Time plan (about 20 min with the full plan explanations; skip the number walkthroughs to save time)**
 
 | Step | Topic | ~Time |
 |---|---|---|
 | 0 | Intro and the dataset | 1.5 min |
 | 1 | Lab 1: Non-equality predicates | 1 min |
-| 2 | Lab 2: Hash and B+-tree indexes | 2 min |
+| 2 | Lab 2: Hash and B+-tree indexes | 3 min |
 | 3 | Lab 3: ORDER BY | 1 min |
-| 4 | Lab 4: Merge join and nested-loop join (3-way joins) | 3 min |
+| 4 | Lab 4: Merge join and nested-loop join (3-way joins) | 4 min |
 | 5 | Lab 5A: Hash join | 0.5 min |
 | 6 | Lab 5B: Aggregates and GROUP BY | 1.5 min |
 | 7 | Lab 6: DISTINCT | 1 min |
-| 8 | Lab 6B: EXPLAIN | 1 min |
+| 8 | Lab 6B: EXPLAIN | 2 min |
 | 9 | Lab 7: Join experiments | 1 min |
 | 10 | Bonus 1: Query error checking | 1.5 min |
 | 11 | Bonus 2: DOUBLE type | 1.5 min |
@@ -151,7 +151,21 @@ ProjectPlan(fields=[sname, gradyear])  [blocks=1, records=4]
 ```
 
 **Say:**
-> "You read it from the bottom up. TablePlan reads all 9 students. SelectPlan is the WHERE clause, and you can see our `>=` in it. ProjectPlan keeps just the two columns. The numbers in brackets are the planner's estimates. For a non-equality condition it assumes half the rows match, so 9 becomes 4. The real answer was 5, but this only affects the estimate, never the result."
+> "Since this is the first plan, let me explain how to read one. You read it from the bottom up, and each line feeds its rows into the line above it, which is indented one less.
+>
+> TablePlan reads the student table. SelectPlan is the WHERE clause, and you can see our `>=` operator in it. ProjectPlan is the SELECT list; it keeps just sname and gradyear.
+>
+> Every line ends with two numbers in brackets. These are the planner's *estimates*, worked out before anything runs:
+> - **blocks** is how many disk blocks the planner expects that part of the plan to read. Disk reads are the main cost in a database, so this is the planner's cost measure.
+> - **records** is how many rows it expects that line to pass up to the line above.
+>
+> The planner gets the starting numbers from the catalog statistics. The student table is 9 rows stored in 1 block, so TablePlan says blocks=1, records=9.
+>
+> SelectPlan still has blocks=1, because filtering doesn't read anything extra; it just checks the rows coming up from below. But records drops to 4. SimpleDB has no statistics about the actual values, so for any non-equality condition it assumes half the rows match: 9 divided by 2, rounded down, is 4.
+>
+> ProjectPlan only removes columns, so both numbers stay the same: 1 block, 4 rows.
+>
+> The real query returned 5 rows, not 4. That's fine, because these numbers are only used to compare plans. The rows themselves are always checked properly, so the result is always correct."
 
 > **Background:** the Lexer gained `matchOpr()`/`eatOpr()` to read multi-character operators. `Term` stores the operator, and `isSatisfied()` uses `Constant.compareTo()`, so ints and strings both work. The non-equality reduction factor is 2.
 > **Code:** `parse/Lexer.java`, `query/Term.java`
@@ -190,7 +204,11 @@ ProjectPlan(fields=[sname, majorid, gradyear])  [blocks=1, records=2]
 ```
 
 **Say:**
-> "That's a plain scan: read every student and test each one. Now the same query on majorid, which has the hash index:"
+> "That's a plain scan: read every student and test each one. TablePlan reads the 1 block holding all 9 students.
+>
+> Because this is an equality, SelectPlan's estimate is different from before. For `field = value`, the planner divides by the number of *distinct values* it thinks the field has. SimpleDB doesn't actually count distinct values; it guesses one third of the rows plus one. For 9 rows that's 1 + 9/3 = 4 distinct gradyears, so it estimates 9 / 4 = 2 rows. In reality 3 students graduated in 2020, so again it's a rough estimate.
+>
+> Now the same query on majorid, which has the hash index:"
 
 **Command:**
 ```sql
@@ -223,7 +241,15 @@ ProjectPlan(fields=[sname, majorid, gradyear])  [blocks=2, records=2]
 ```
 
 **Say:**
-> "There's now an IndexSelectPlan. It hashes 20 to one of 100 buckets, gets the matching record IDs, and jumps straight to those rows instead of scanning the table.
+> "There's now an IndexSelectPlan instead of a scan. It hashes 20 to one of 100 buckets, gets the matching record IDs, and jumps straight to those rows.
+>
+> The TablePlan under it isn't a full scan any more. It's just the table the index points into, which is why it still shows the table's size, 1 block and 9 rows.
+>
+> IndexSelectPlan's numbers work like this. records is 2: the same guess as before, 9 rows divided by 4 distinct values. blocks is the cost of searching the index plus one block for each matching row. Searching a hash index costs its size divided by 100 buckets, and our index is far smaller than one block, so that part rounds down to 0. That leaves 0 + 2 rows = 2 blocks.
+>
+> SelectPlan above it re-checks `majorid = 20` but adds no cost, so the numbers carry up unchanged: 2 blocks, 2 rows.
+>
+> You might notice 2 blocks for the index is *more* than the 1 block for the full scan. That's because the whole student table fits in one block, so a scan is as cheap as it gets. The heuristic planner always uses an index for `field = constant`, because on a real-sized table a scan reads every block, while the index reads only the matching rows.
 >
 > The B+-tree works the same way for lookups. Here are student 4's enrollments:"
 
@@ -264,7 +290,13 @@ ProjectPlan(fields=[sname, grade])  [blocks=7, records=1]
 ```
 
 **Say:**
-> "That's an IndexJoinPlan. The planner first finds the 2022 students, then for each one it looks up their enrollments through the B+-tree instead of scanning the whole enroll table."
+> "That's an IndexJoinPlan. Its first child is the outer side: the students, filtered to gradyear 2022, estimated at 2 of the 9. Its second child, enroll, is the inner side, which is never scanned. For each outer student, the join looks up their enrollments through the B+-tree on studentid.
+>
+> Following the records upwards: 2 students are expected at the bottom. Each student is expected to match 2 enrollments (6 enrollment rows divided by 1 + 6/3 = 3 distinct studentids), so IndexJoinPlan estimates 2 × 2 = 4 rows.
+>
+> The SelectPlan above re-applies `sid = studentid`. The planner divides by the number of distinct values *again*, so the estimate drops to 1, even though the real answer is 2 rows for sue. Counting the join condition twice makes the estimate too low, but it doesn't change the result."
+
+> **Note (not to say):** don't explain the `blocks=7` on these lines. It's not a real estimate. It comes from known issue #2 at the bottom: the B-tree lookup cost is about −2 billion on this tiny index, and multiplying it by 2 lookups overflows back around to a small number. If you're asked, talk about the records numbers, or say the B-tree cost formula breaks down for an index smaller than one block.
 
 > **Background:** the parser accepts `using hash | btree` (hash is the default) and stores the type in `CreateIndexData`. `idxcat` gained an `indextype` column, and `IndexInfo` opens the matching index class and uses its cost formula. We also switched SimpleDB to the `HeuristicQueryPlanner` + `IndexUpdatePlanner`, which use indexes.
 > **Code:** `metadata/IndexInfo.java`, `metadata/IndexMgr.java`, `parse/Parser.java`, `embedded/CreateStudentDB.java`
@@ -310,7 +342,9 @@ ProjectPlan(fields=[sname, majorid, gradyear])  [blocks=1, records=9]
 ```
 
 **Say:**
-> "The SortPlan has a list of fields and a matching list of directions: true is ascending, false is descending. The comparator goes field by field and just flips the result for descending fields."
+> "The SortPlan has a list of fields and a matching list of directions: true is ascending, false is descending. The comparator goes field by field and just flips the result for descending fields.
+>
+> On the numbers: sorting doesn't add or remove rows, so records stays 9 all the way up. For a sort, blocks means the size of the sorted temporary table that the rows are read back from. 9 student rows fit in 1 block, so it's 1. The one-time cost of doing the sort isn't counted on this line. The planner works that out separately when it needs it, for example when comparing merge join with hash join, which we'll see next."
 
 > **Background:** `order`, `by`, `asc` and `desc` are keywords. `Parser.orderList()` collects the fields and directions into `QueryData`. `SortPlan` takes the directions, and `RecordComparator.compare()` flips the sign for DESC.
 > **Code:** `parse/Parser.java`, `materialize/SortPlan.java`, `materialize/RecordComparator.java`
@@ -363,6 +397,20 @@ ProjectPlan(fields=[sname, prof, grade])  [blocks=1, records=1]
 **Say:**
 > "Reading bottom up: the planner starts with the smallest table, section, joins in enroll, then student. There's no index on these join fields, so it uses sort-merge join. It sorts both sides on the join key and walks them together, like merging two sorted lists. The ORDER BY sort is on top.
 >
+> Let me walk through the numbers.
+>
+> At the bottom, section is 5 rows and enroll is 6 rows, 1 block each.
+>
+> The first MergeJoinPlan shows blocks=2. A merge join reads both of its sorted inputs once, and each sorted input fits in 1 block, so 1 + 1 = 2. Its records is 10. The join-size formula multiplies the two inputs, 5 × 6 = 30, then divides by the larger number of distinct join values. The guess is 1 + 5/3 = 2 for section and 1 + 6/3 = 3 for enroll, so 30 / 3 = 10.
+>
+> The SelectPlan above it re-applies the join condition, which divides by 3 again: 10 / 3 = 3. As in Lab 2, the join condition is counted twice, so the estimates from here up are too low.
+>
+> The second MergeJoinPlan joins those 3 rows with the 9 students. Again it reads two 1-block sorted inputs, so 2 blocks. Records is 3 × 9 / 4 = 6, where 4 is the guess for distinct student ids. The SelectPlan above divides by 4 again, giving 1.
+>
+> SortPlan and ProjectPlan don't change the row count, so the top says 1 row. The real answer is 6 rows. Again, the result is correct; only the estimate is low.
+>
+> Remember the message 'est. cost 6 vs hashjoin 6' from when we ran the query? That's the planner pricing both algorithms for the first join, and this time the one-time sorting cost *is* included. Merge join: sorting section costs 1 block to read plus 1 to write, the same for enroll, then 2 blocks to merge, so 2 + 2 + 2 = 6. Hash join: partitioning reads both tables and writes them out, 4 blocks, then joining the partitions reads 2, so 4 + 2 = 6. It's a tie, and merge join wins ties.
+>
 > We can also mix in non-equality filters. Here are the same joins, only for sections before 2019:"
 
 **Command:**
@@ -384,16 +432,26 @@ select sname, prof, yearoffered, grade from student, enroll, section where sid =
 ```sql
 explain select sname, prof, yearoffered, grade from student, enroll, section where sid = studentid and sectionid = sectid and yearoffered < 2019 order by yearoffered desc, sname
 ```
-**Expected output** (bottom of the tree):
+**Expected output:**
 ```
-          MergeJoinPlan(fields=sectid=sectionid)
+ProjectPlan(fields=[sname, prof, yearoffered, grade])  [blocks=0, records=0]
+  SortPlan(fields=[yearoffered, sname], directions=[false, true])  [blocks=0, records=0]
+    SelectPlan(predicate=sid=studentid)  [blocks=2, records=0]
+      MergeJoinPlan(fields=studentid=sid)  [blocks=2, records=2]
+        SelectPlan(predicate=sectionid=sectid)  [blocks=2, records=1]
+          MergeJoinPlan(fields=sectid=sectionid)  [blocks=2, records=4]
             SelectPlan(predicate=yearoffered<2019)  [blocks=1, records=2]
               TablePlan(table=section)  [blocks=1, records=5]
             TablePlan(table=enroll)  [blocks=1, records=6]
+        TablePlan(table=student)  [blocks=1, records=9]
 ```
 
 **Say:**
 > "Look at the bottom: the `yearoffered < 2019` filter sits right on the section table, *below* the join. A filter that only mentions one table is applied before the join, so fewer rows go into it.
+>
+> You can see that in the numbers. Section's 5 rows become an estimated 2 after the filter (half, since it's a non-equality). So the first join now expects 2 × 6 / 3 = 4 rows, compared with 10 in the previous query.
+>
+> Going up, the same double-counting happens: 4 / 3 = 1, then 1 × 9 / 4 = 2, then 2 / 4 = 0. The top of the plan says 0 rows, but the query really returns 5. When the estimate is 0 rows, the sorted temporary table is estimated at 0 blocks, which is why SortPlan and ProjectPlan show blocks=0. It's an estimate problem, not an execution problem.
 >
 > Finally, what if the join condition itself isn't equality? Here we match drama students (major 30) with every section offered before they graduated:"
 
@@ -468,6 +526,23 @@ select count(eid), min(grade), max(grade) from enroll
 **Expected output:** `6  A  C`
 
 **Say:**
+> "Here's the plan for the first one:"
+
+**Command:**
+```sql
+explain select count(sid), min(gradyear), max(gradyear), avg(gradyear) from student
+```
+**Expected output:**
+```
+ProjectPlan(fields=[countofsid, minofgradyear, maxofgradyear, avgofgradyear])  [blocks=1, records=1]
+  GroupByPlan(fields=[])  [blocks=1, records=1]
+    TablePlan(table=student)  [blocks=1, records=9]
+```
+
+**Say:**
+> "GroupByPlan has no group fields, `fields=[]`, and it sits directly on the table, with no sort in between. It reads the 1 block of students, 9 rows, and outputs exactly 1 row. The estimate of records=1 is exact here: with no GROUP BY, there's always one output row."
+
+**Say:**
 > "Now with GROUP BY, the same statistics per major:"
 
 **Command:**
@@ -484,7 +559,7 @@ select majorid, count(sid), min(gradyear), max(gradyear), avg(gradyear) from stu
 ```
 
 **Say:**
-> "One row per major. Internally, the rows are sorted on majorid so each group's rows sit next to each other. The group-by scan then walks one group at a time, updating every aggregate, and outputs a row when the group changes.
+> "One row per major. Internally, the rows are sorted on majorid so each group's rows sit next to each other. The group-by scan then walks one group at a time, updating every aggregate, and outputs a row when the group changes. (If you run `explain` on this, GroupByPlan shows records=4: the planner estimates one row per distinct majorid, using its usual guess of 1 + 9/3 = 4. The real answer is 3.)
 >
 > It also works on top of a join, and you can sort by the aggregate using its output name. Here are the departments ranked by number of students:"
 
@@ -510,17 +585,24 @@ explain select prof, count(eid) from section, enroll where sectid = sectionid gr
 ```
 **Expected output:**
 ```
-ProjectPlan(fields=[prof, countofeid])
-  SortPlan(fields=[countofeid, prof], directions=[false, true])
-    GroupByPlan(fields=[prof])
-      SelectPlan(predicate=sectid=sectionid)
-        MergeJoinPlan(fields=sectid=sectionid)
-          TablePlan(table=section)
-          TablePlan(table=enroll)
+mergejoin on sectid=sectionid used (est. cost 6 vs hashjoin 6)
+ProjectPlan(fields=[prof, countofeid])  [blocks=1, records=2]
+  SortPlan(fields=[countofeid, prof], directions=[false, true])  [blocks=1, records=2]
+    GroupByPlan(fields=[prof])  [blocks=1, records=2]
+      SelectPlan(predicate=sectid=sectionid)  [blocks=2, records=3]
+        MergeJoinPlan(fields=sectid=sectionid)  [blocks=2, records=10]
+          TablePlan(table=section)  [blocks=1, records=5]
+          TablePlan(table=enroll)  [blocks=1, records=6]
 ```
 
 **Say:**
-> "Join first, then group by professor, then sort by the count descending, with ties broken by name."
+> "Join first, then group by professor, then sort by the count descending, with ties broken by name.
+>
+> The bottom half is the same join we saw in Lab 4: merge join, 2 blocks, estimated 10 rows, then 3 after the condition is re-applied.
+>
+> GroupByPlan's blocks is 1. Before grouping, the 3 joined rows are sorted on prof into a temporary table, which fits in 1 block, and GroupByPlan reads that. Its records is the estimated number of groups, one per distinct professor. Section has 5 rows, so the guess is 1 + 5/3 = 2 professors. There are really 4 (brando, einstein, newton and turing).
+>
+> The SortPlan for ORDER BY sorts those 2 estimated rows, which also fit in 1 block. ProjectPlan carries the same numbers to the top."
 
 > **Background:** new keywords `group`, `sum`, `count`, `avg`, `min` and `max`. The parser stores aggregates by output name, and `checkGrouping()` rejects plain fields that are neither grouped nor aggregated. `GroupByPlan` sorts on the group fields; with no group fields it skips the sort and treats the input as one group. Each aggregate sets its own output type, so MIN/MAX keep the field's type.
 > **Code:** `parse/Parser.java`, `materialize/GroupByPlan.java`, `materialize/GroupByScan.java`, `materialize/AvgFn.java`
@@ -561,15 +643,25 @@ explain select distinct dname from dept, student where did = majorid
 **Expected output:**
 ```
 DistinctPlan  [blocks=7, records=1]
-  ProjectPlan(fields=[dname])
-    SelectPlan(predicate=did=majorid)
-      IndexJoinPlan(field=did)
-        TablePlan(table=dept)
-        TablePlan(table=student)
+  ProjectPlan(fields=[dname])  [blocks=7, records=1]
+    SelectPlan(predicate=did=majorid)  [blocks=7, records=1]
+      IndexJoinPlan(field=did)  [blocks=7, records=6]
+        TablePlan(table=dept)  [blocks=1, records=3]
+        TablePlan(table=student)  [blocks=1, records=9]
 ```
 
 **Say:**
-> "DistinctPlan sits on top of the projection, because duplicates only appear once the other columns are dropped. It keeps a hash set of rows it has already returned and skips repeats. So it's one pass with no sorting, which is why the output stays in its original order (compsci, math, drama) rather than alphabetical."
+> "DistinctPlan sits on top of the projection, because duplicates only appear once the other columns are dropped. It keeps a hash set of rows it has already returned and skips repeats. So it's one pass with no sorting, which is why the output stays in its original order (compsci, math, drama) rather than alphabetical.
+>
+> This plan is also a good example of how an index join is costed, this time through the *hash* index on student.majorid. dept is the outer side: 3 rows in 1 block. For each department, the join looks up matching students in the hash index.
+>
+> IndexJoinPlan's blocks is 7, made of three parts. First, 1 block to read dept. Second, the cost of 3 index lookups, one per department; each costs the index size divided by 100 buckets, which rounds down to 0 for an index this small. Third, 1 block for each matching student row fetched, an estimated 6. So 1 + 0 + 6 = 7.
+>
+> The 6 records comes from 3 departments × 2 students expected per department, using the usual guess of 9 / (1 + 9/3) = 2.
+>
+> The SelectPlan above re-applies `did = majorid` and divides by 4 distinct values, so the estimate drops to 1. ProjectPlan keeps it at 1. DistinctPlan can never output more rows than it gets, so its estimate stays at 1.
+>
+> None of these steps reads extra blocks, so blocks stays 7 all the way to the top. Really there are 3 distinct department names."
 
 > **Background:** `distinct` is a keyword, and `QueryData.isDistinct()` stores it. All three planners wrap the final projection in a `DistinctPlan`, and `DistinctScan` uses a HashSet. The estimated output is min(input rows, product of each field's distinct values).
 > **Code:** `plan/DistinctPlan.java`, `query/DistinctScan.java`
@@ -589,21 +681,36 @@ explain select sname, gradyear, title, yearoffered from student, section, course
 ```
 **Expected output:**
 ```
-ProjectPlan(fields=[sname, gradyear, title, yearoffered])
-  SortPlan(fields=[sname, yearoffered], directions=[true, false])
-    SelectPlan(predicate=courseid=cid)
-      MergeJoinPlan(fields=courseid=cid)                      <- equality join
-        NestedLoopJoinPlan(predicate=gradyear>yearoffered)    <- non-equality join
-          SelectPlan(predicate=majorid=30)
-            IndexSelectPlan(value=30)                         <- hash index
-              TablePlan(table=student)
-          TablePlan(table=section)
-        TablePlan(table=course)
+index on majorid used
+nestedloopjoin used
+mergejoin on courseid=cid used (est. cost 9 vs hashjoin 9)
+ProjectPlan(fields=[sname, gradyear, title, yearoffered])  [blocks=1, records=3]
+  SortPlan(fields=[sname, yearoffered], directions=[true, false])  [blocks=1, records=3]
+    SelectPlan(predicate=courseid=cid)  [blocks=2, records=3]
+      MergeJoinPlan(fields=courseid=cid)  [blocks=2, records=10]                      <- equality join
+        NestedLoopJoinPlan(predicate=gradyear>yearoffered)  [blocks=4, records=5]     <- non-equality join
+          SelectPlan(predicate=majorid=30)  [blocks=2, records=2]
+            IndexSelectPlan(value=30)  [blocks=2, records=2]                          <- hash index
+              TablePlan(table=student)  [blocks=1, records=9]
+          TablePlan(table=section)  [blocks=1, records=5]
+        TablePlan(table=course)  [blocks=1, records=6]
 ```
 (The `<-` labels are ours, not part of the output.)
 
 **Say:**
-> "From the bottom: the hash index finds the drama students, a nested-loop join handles the inequality with section, a merge join adds course, and the sort on top handles the ORDER BY. The sorts that merge join and GROUP BY use internally are hidden, so the only SortPlan you see is the ORDER BY."
+> "From the bottom: the hash index finds the drama students, a nested-loop join handles the inequality with section, a merge join adds course, and the sort on top handles the ORDER BY. The sorts that merge join and GROUP BY use internally are hidden, so the only SortPlan you see is the ORDER BY.
+>
+> Let me walk through the numbers once more, because they show how each operator is costed.
+>
+> The IndexSelectPlan for major 30 is the same as in Lab 2: an estimated 2 students, costing 0 blocks for the hash lookup plus 1 block per student, so 2 blocks.
+>
+> The NestedLoopJoinPlan's cost is the interesting one: blocks=4. A nested-loop join reads its outer input once, which is 2 blocks. Then, for *every* outer row, it rescans the whole inner input, section, which is 1 block. So 2 + (2 rows × 1 block) = 4. That's why nested loop is the slowest choice on big tables: the cost grows with outer rows times inner size. Its records is 2 students × 5 sections = 10 combinations, halved because `>` is a non-equality, so 5.
+>
+> The MergeJoinPlan then joins those 5 rows with course. It reads two sorted inputs of 1 block each, so 2 blocks. Records is 5 × 6 / 3 = 10. The SelectPlan above re-applies `courseid = cid`, which divides by 3 again, giving 3. The ORDER BY SortPlan holds those 3 rows in 1 block.
+>
+> The query really returns 10 rows, so again the estimate is low because the join condition is counted twice, but the result is exactly right.
+>
+> You can also see the planner printing its decisions above the plan, including 'est. cost 9 vs hashjoin 9' for the merge join. That's the same tie as before, with slightly bigger inputs."
 
 > **Background:** `Plan` gained default `children()` and `description()` methods, implemented by every plan class. `PlanPrinter` formats the tree with `[blocks=…, records=…]` from `blocksAccessed()` and `recordsOutput()`. `Planner.explainQueryPlan()` builds without executing. `PlanStatement.explain()` is implemented for embedded and network JDBC.
 > **Code:** `plan/PlanPrinter.java`, `plan/Planner.java`, `SimpleDBClients/src/SimpleIJ.java`
@@ -804,6 +911,23 @@ insert into student(sid, sname, majorid, gradyear) values (99, 'zed', 10, 2020.5
 - **Why doesn't plain `student, enroll` use the B-tree?** Without the gradyear filter, enroll (6) is smaller than student (9), so enroll goes on the outside. The index is on enroll, so it can't be used for lookups.
 - **Why does `gradyear >= 2021` estimate 4 rows when there are 5? Is it always half?** Yes. For any non-equality condition, `Term.reductionFactor()` returns a fixed factor of 2, so the planner estimates half the rows (9 / 2 = 4, integer division). It doesn't look at the value or the operator: `> 2021` (actually 2 rows), `<= 2019` (1) and `!= 2020` (6) are all estimated as 4. Several conditions multiply (two conditions → divide by 4). SimpleDB keeps no histograms or min/max statistics, so it can't know how many values fall in a range, and half is a simple rule of thumb. It only affects the estimate used to compare plans. The results are always correct, because every row is actually checked.
 - **Why do some EXPLAIN nodes show records=0?** The join predicate is applied again as a SelectPlan above the join, so the estimate is divided twice. The actual results are correct; only the estimate is off.
+- **Where do the distinct-value guesses come from?** SimpleDB's statistics manager doesn't count distinct values. It assumes every field has 1 + (rows / 3) distinct values: 4 for student, 3 for enroll and course, 2 for dept and section. Every equality estimate in the plans divides by these.
+- **Cheat sheet: what blocks and records mean for each operator**
+
+  | Operator | blocks | records |
+  |---|---|---|
+  | TablePlan | blocks the table occupies (from catalog stats) | rows in the table |
+  | SelectPlan | same as its child (filtering reads nothing extra) | child ÷ 2 for non-equality; child ÷ distinct values for equality |
+  | ProjectPlan | same as child | same as child |
+  | IndexSelectPlan | index search cost + 1 block per matching row | rows ÷ distinct values |
+  | IndexJoinPlan | outer blocks + (outer rows × index search cost) + matching rows | outer rows × matches per lookup |
+  | MergeJoinPlan | size of the two sorted inputs (sort cost not included) | left × right ÷ max distinct join values |
+  | NestedLoopJoinPlan | outer blocks + (outer rows × inner blocks) | left × right ÷ reduction factor |
+  | SortPlan | size of the sorted temp table | same as child |
+  | GroupByPlan | blocks of its (sorted) input | product of distinct values of the group fields (1 if no GROUP BY) |
+  | DistinctPlan | same as child | min(child rows, product of distinct values of the columns) |
+
+  Hash index search cost = index blocks ÷ 100 buckets. B-tree search cost = 1 + log(index blocks) ÷ log(entries per block).
 - **Why must an index exist before inserting rows?** Index entries are only added on insert (`IndexUpdatePlanner`). There's no bulk build from existing rows.
 - **Hash vs B-tree?** Hash: one bucket per lookup, equality only. B-tree: root-to-leaf traversal. It could do ranges, but our planner only uses indexes for equality.
 - **Why no `student.sid`?** SimpleDB has no table qualifiers. A field name that appears in two FROM tables is reported as ambiguous by the verifier.
@@ -814,4 +938,4 @@ insert into student(sid, sname, majorid, gradyear) values (99, 'zed', 10, 2020.5
 ## Known issues (not yet fixed in the code)
 
 1. **MergeJoinScan crash:** `beforeFirst()` doesn't reset `joinval`, so a merge join that gets restarted (for example, under a nested-loop join) crashes. Repro: the `gradyear <= yearoffered order by title` query in the warning box at the top.
-2. **B-tree cost on tiny tables:** `BTreeIndex.searchCost` takes `log(0)` when the index has 0 blocks, so EXPLAIN shows about −2 billion blocks. Repro: `explain select eid, sectionid, grade from enroll where studentid = 4`.
+2. **B-tree cost on tiny tables:** `BTreeIndex.searchCost` takes `log(0)` when the index has 0 blocks, so EXPLAIN shows about −2 billion blocks. Repro: `explain select eid, sectionid, grade from enroll where studentid = 4`. The same bug is behind the `blocks=7` on the B-tree index join in Step 2: (−2147483647 × 2 lookups) overflows to 2, and 1 + 2 + 4 = 7. Fix: use at least 1 block in `searchCost`.
