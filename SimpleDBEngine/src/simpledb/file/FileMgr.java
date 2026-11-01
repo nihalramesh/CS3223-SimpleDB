@@ -7,7 +7,24 @@ public class FileMgr {
    private File dbDirectory;
    private int blocksize;
    private boolean isNew;
-   private Map<String,RandomAccessFile> openFiles = new HashMap<>();
+   // at most this many files are kept open; a sort can create
+   // thousands of temporary tables, more than the OS allows open
+   private static final int MAX_OPEN_FILES = 500;
+   // ordered by last access, so the least recently used file is closed first
+   private Map<String,RandomAccessFile> openFiles =
+         new LinkedHashMap<String,RandomAccessFile>(16, 0.75f, true) {
+      protected boolean removeEldestEntry(Map.Entry<String,RandomAccessFile> eldest) {
+         if (size() <= MAX_OPEN_FILES)
+            return false;
+         try {
+            eldest.getValue().close();
+         }
+         catch (IOException e) {
+            throw new RuntimeException("cannot close " + eldest.getKey());
+         }
+         return true;
+      }
+   };
 
    public FileMgr(File dbDirectory, int blocksize) {
       this.dbDirectory = dbDirectory;
@@ -61,7 +78,7 @@ public class FileMgr {
       return blk;
    }
 
-   public int length(String filename) {
+   public synchronized int length(String filename) {
       try {
          RandomAccessFile f = getFile(filename);
          return (int)(f.length() / blocksize);
