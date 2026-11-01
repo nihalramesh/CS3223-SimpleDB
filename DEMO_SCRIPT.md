@@ -159,7 +159,7 @@ ProjectPlan(fields=[sname, gradyear])  [blocks=1, records=4]
 > - **blocks** is how many disk blocks the planner expects that part of the plan to read. Disk reads are the main cost in a database, so this is the planner's cost measure.
 > - **records** is how many rows it expects that line to pass up to the line above.
 >
-> The planner gets the starting numbers from the catalog statistics. The student table is 9 rows stored in 1 block, so TablePlan says blocks=1, records=9.
+> The starting numbers come from SimpleDB's statistics manager. When the database starts, it scans every table once and counts its rows and blocks, and it recounts after every 100 requests. The student table is 9 rows stored in 1 block, so TablePlan says blocks=1, records=9.
 >
 > SelectPlan still has blocks=1, because filtering doesn't read anything extra; it just checks the rows coming up from below. But records drops to 4. SimpleDB has no statistics about the actual values, so for any non-equality condition it assumes half the rows match: 9 divided by 2, rounded down, is 4.
 >
@@ -911,12 +911,13 @@ insert into student(sid, sname, majorid, gradyear) values (99, 'zed', 10, 2020.5
 - **Why doesn't plain `student, enroll` use the B-tree?** Without the gradyear filter, enroll (6) is smaller than student (9), so enroll goes on the outside. The index is on enroll, so it can't be used for lookups.
 - **Why does `gradyear >= 2021` estimate 4 rows when there are 5? Is it always half?** Yes. For any non-equality condition, `Term.reductionFactor()` returns a fixed factor of 2, so the planner estimates half the rows (9 / 2 = 4, integer division). It doesn't look at the value or the operator: `> 2021` (actually 2 rows), `<= 2019` (1) and `!= 2020` (6) are all estimated as 4. Several conditions multiply (two conditions → divide by 4). SimpleDB keeps no histograms or min/max statistics, so it can't know how many values fall in a range, and half is a simple rule of thumb. It only affects the estimate used to compare plans. The results are always correct, because every row is actually checked.
 - **Why do some EXPLAIN nodes show records=0?** The join predicate is applied again as a SelectPlan above the join, so the estimate is divided twice. The actual results are correct; only the estimate is off.
+- **How does the planner know a table's size before running the query?** The `StatMgr` class from the original SimpleDB (we didn't change it) scans every table when the database starts, counting rows and blocks, and keeps the counts in memory. It recounts every 100 requests, so the numbers can be slightly out of date. Nothing is stored on disk. Real databases do the same with an ANALYZE command.
 - **Where do the distinct-value guesses come from?** SimpleDB's statistics manager doesn't count distinct values. It assumes every field has 1 + (rows / 3) distinct values: 4 for student, 3 for enroll and course, 2 for dept and section. Every equality estimate in the plans divides by these.
 - **Cheat sheet: what blocks and records mean for each operator**
 
   | Operator | blocks | records |
   |---|---|---|
-  | TablePlan | blocks the table occupies (from catalog stats) | rows in the table |
+  | TablePlan | blocks the table occupies (counted by StatMgr) | rows in the table |
   | SelectPlan | same as its child (filtering reads nothing extra) | child ÷ 2 for non-equality; child ÷ distinct values for equality |
   | ProjectPlan | same as child | same as child |
   | IndexSelectPlan | index search cost + 1 block per matching row | rows ÷ distinct values |
